@@ -1,0 +1,52 @@
+---
+
+name:
+    qbfc
+version:
+    0.1.0.0
+github:
+    "prikhi/quickbooks-for-communes"
+license:
+    GPL-3
+author:
+    "Pavan Rikhi"
+maintainer:
+    "pavan.rikhi@gmail.com"
+copyright:
+    "GPL-3.0"
+
+description: >
+    Please see the README on GitHub at
+    <https://github.com/prikhi/QuickBooks-For-Communes#readme>
+
+dependencies:
+    - base >= 4.7 && < 5
+
+library:
+    source-dirs: src
+
+executables:
+    qbfc-server:
+        main:
+            Main.hs
+        source-dirs:
+            app
+        ghc-options:
+            - -threaded
+            - -rtsopts
+            - -with-rtsopts=-N
+        dependencies:
+            - qbfc
+
+tests:
+    qbfc-test:
+        main:
+            Spec.hs
+        source-dirs:
+            test
+        ghc-options:
+            - -threaded
+            - -rtsopts
+            - -with-rtsopts=-N
+        dependencies:
+            - qbfc
