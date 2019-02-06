@@ -21,6 +21,10 @@ description: >
 
 dependencies:
     - base >= 4.7 && < 5
+    - bytestring
+    - text
+    - uuid
+    - xmlgen
 
 library:
     source-dirs: src

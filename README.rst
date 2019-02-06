@@ -24,11 +24,13 @@ Some useful external references:
 * `QuickBooks Web Connector Programmer's Guide[PDF]`_
 * `QuickBooks Desktop API Reference`_
 * `QuickBooks SDK Request/Response Reference`_
+* `QBXML v13 Samples`_
 
 
 .. _QuickBooks Web Connector Programmer's Guide[PDF]: https://developer-static.intuit.com/qbSDK-current/doc/PDF/QBWC_ProGuide.pdf
 .. _QuickBooks Desktop API Reference: https://developer.intuit.com/app/developer/qbdesktop/docs/api-reference
 .. _QuickBooks SDK Request/Response Reference: https://developer-static.intuit.com/qbsdk-current/common/newosr/
+.. _QBXML v13 Samples: https://github.com/IntuitDeveloper/QBXML_SDK13_Samples/tree/master/xmlfiles
 
 
 License
