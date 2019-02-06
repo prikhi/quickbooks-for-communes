@@ -25,12 +25,20 @@ Some useful external references:
 * `QuickBooks Desktop API Reference`_
 * `QuickBooks SDK Request/Response Reference`_
 * `QBXML v13 Samples`_
+* Example SOAP Requests/Responses: `Authenticate`_, `Send Request`_,
+  `Receive Response`_, `Close Connection`_
+* `ConsoliBYTE's Wiki`_
 
 
 .. _QuickBooks Web Connector Programmer's Guide[PDF]: https://developer-static.intuit.com/qbSDK-current/doc/PDF/QBWC_ProGuide.pdf
 .. _QuickBooks Desktop API Reference: https://developer.intuit.com/app/developer/qbdesktop/docs/api-reference
 .. _QuickBooks SDK Request/Response Reference: https://developer-static.intuit.com/qbsdk-current/common/newosr/
 .. _QBXML v13 Samples: https://github.com/IntuitDeveloper/QBXML_SDK13_Samples/tree/master/xmlfiles
+.. _Authenticate: http://wiki.consolibyte.com/wiki/doku.php/quickbooks_web_connector_soap_authenticate
+.. _Send Request: http://wiki.consolibyte.com/wiki/doku.php/quickbooks_web_connector_soap_sendrequestxml
+.. _Receive Response: http://wiki.consolibyte.com/wiki/doku.php/quickbooks_web_connector_soap_receiveresponsexml
+.. _Close Connection: http://wiki.consolibyte.com/wiki/doku.php/quickbooks_web_connector_soap_closeconnection
+.. _ConsoliBYTE's Wiki: http://wiki.consolibyte.com/wiki/doku.php/quickbooks_web_connector
 
 
 License
