@@ -28,6 +28,11 @@ dependencies:
 
 library:
     source-dirs: src
+    dependencies:
+        - http-media
+        - servant
+        - servant-server
+        - wai
 
 executables:
     qbfc-server:
@@ -41,6 +46,9 @@ executables:
             - -with-rtsopts=-N
         dependencies:
             - qbfc
+            - wai
+            - warp
+            - warp-tls
 
 tests:
     qbfc-test:
