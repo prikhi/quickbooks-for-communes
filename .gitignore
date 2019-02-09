@@ -1,2 +1,3 @@
 server/*.cabal
 server/.stack-work
+server/*.pem
