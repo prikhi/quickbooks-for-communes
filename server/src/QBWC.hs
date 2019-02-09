@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,14 +15,22 @@ module QBWC
     )
 where
 
-import           Data.ByteString                ( ByteString )
 import           Data.Maybe                     ( catMaybes )
 import           Data.Text                      ( Text
                                                 , pack
                                                 )
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
-import           Text.XML.Generator
+import           Text.XML.Generator             ( Xml
+                                                , Doc
+                                                , Elem
+                                                , xelemWithText
+                                                , xelem
+                                                , xelems
+                                                , doc
+                                                , defaultDocInfo
+                                                )
+import           XML                            ( ToXML(..) )
 
 data QWCConfig = QWCConfig
     { qcAppDescription :: Text
@@ -42,6 +51,9 @@ data QWCConfig = QWCConfig
     , qcStyle :: Maybe SOAPStyle
     , qcUnattendedModePref :: Maybe UnattendedModePreference
     } deriving (Show)
+
+instance ToXML (QWCConfig, Text) where
+    toXML (c, u) = generateConnectorFile c u
 
 data AuthFlag
     = AllEditions
@@ -109,11 +121,11 @@ instance Show UnattendedModePreference where
 -- | Generate the QWC XML configuration file for a QuickBooks User's Web
 -- Connector.
 generateConnectorFile
-    :: QWCConfig -- ^ The Application's Web Connector Configuration
-    -> Text -- ^ The username
-    -> ByteString -- ^ The render XML of the QWC File.
+    :: QWCConfig -- ^ The Application's Web Connector Configuration.
+    -> Text -- ^ The User's Login.
+    -> Xml Doc -- ^ The XML representing the QWC File.
 generateConnectorFile QWCConfig {..} userName =
-    xrender $ doc defaultDocInfo $ xelem "QBWCXML" $ xelems $ catMaybes
+    doc defaultDocInfo $ xelem "QBWCXML" $ xelems $ catMaybes
         [ justXText "AppDescription" qcAppDescription
         , maybeElem "AppDisplayName" qcAppDisplayName
         , justXText "AppID"      qcAppID
