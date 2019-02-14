@@ -22,13 +22,10 @@ import           Data.Text                      ( Text
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
 import           Text.XML.Generator             ( Xml
-                                                , Doc
                                                 , Elem
                                                 , xelemWithText
                                                 , xelem
                                                 , xelems
-                                                , doc
-                                                , defaultDocInfo
                                                 )
 import           XML                            ( ToXML(..) )
 
@@ -123,9 +120,9 @@ instance Show UnattendedModePreference where
 generateConnectorFile
     :: QWCConfig -- ^ The Application's Web Connector Configuration.
     -> Text -- ^ The User's Login.
-    -> Xml Doc -- ^ The XML representing the QWC File.
+    -> Xml Elem -- ^ The XML representing the QWC File.
 generateConnectorFile QWCConfig {..} userName =
-    doc defaultDocInfo $ xelem "QBWCXML" $ xelems $ catMaybes
+    xelem "QBWCXML" $ xelems $ catMaybes
         [ justXText "AppDescription" qcAppDescription
         , maybeElem "AppDisplayName" qcAppDisplayName
         , justXText "AppID"      qcAppID
