@@ -47,6 +47,7 @@ executables:
         dependencies:
             - qbfc
             - wai
+            - wai-extra
             - warp
             - warp-tls
 
