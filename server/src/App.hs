@@ -4,15 +4,16 @@ module App where
 
 import Api (api)
 import Data.Text (Text)
-import QBWC (QWCConfig(..), QBType(..), Schedule(..))
-import Servant.API ((:<|>)(..), NoContent(..))
-import Servant.Server (Handler, serve)
 import Network.Wai (Application)
+import QBWC (QWCConfig(..), QBType(..), Schedule(..))
+import QBXML (Callback(..), CallbackResponse(..))
+import Servant.API ((:<|>)(..) )
+import Servant.Server (Handler, serve)
 
 app :: Application
 app = serve api server
 
-server :: Handler (QWCConfig, Text) :<|> Handler NoContent
+server :: Handler (QWCConfig, Text) :<|> (Callback -> Handler CallbackResponse)
 server = generateQwc
     :<|> accountQuery
 
@@ -41,5 +42,7 @@ qwcConfig =
 generateQwc :: Handler (QWCConfig, Text)
 generateQwc = return (qwcConfig, "acc-sync")
 
-accountQuery :: Handler NoContent
-accountQuery = return NoContent
+accountQuery :: Callback -> Handler CallbackResponse
+accountQuery r = case r of
+    ServerVersion ->
+        return $ Version "0.1.0.0"
