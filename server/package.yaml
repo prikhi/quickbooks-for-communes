@@ -29,10 +29,14 @@ dependencies:
 library:
     source-dirs: src
     dependencies:
+        - exceptions
         - http-media
+        - mtl
         - servant
         - servant-server
         - wai
+        - xml-conduit
+        - xml-types
 
 executables:
     qbfc-server:
