@@ -53,12 +53,12 @@ parseServerVersion el =
         else throwM (error "ServerVersion parse failure" :: SomeException)
 
 data CallbackResponse
-    = Version Text
+    = ServerVersionResp Text
     deriving (Show)
 
 instance ToXML CallbackResponse where
     toXML r = case r of
-        Version v ->
+        ServerVersionResp v ->
             xelemQ qbNamespace "serverVersionResponse" $
                 xelemQ qbNamespace "serverVersionResult" v
 

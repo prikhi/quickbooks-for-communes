@@ -54,4 +54,4 @@ generateQwc = return (qwcConfig, "acc-sync")
 accountQuery :: Callback -> Handler CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
-        return $ Version "0.1.0.0"
+        return $ ServerVersionResp "0.1.0.0"
