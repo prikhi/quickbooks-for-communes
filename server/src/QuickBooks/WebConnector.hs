@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-module QBWC
+module QuickBooks.WebConnector
     ( -- * QWC File Generation
       QWCConfig(..)
     , AuthFlag(..)

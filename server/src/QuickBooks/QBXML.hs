@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module QBXML
+module QuickBooks.QBXML
     ( Request(..)
     , qbxmlDoc
     , buildRequest

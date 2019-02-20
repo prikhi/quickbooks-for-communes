@@ -5,10 +5,10 @@ module Api where
 
 import           Data.Proxy                     ( Proxy(..) )
 import           Data.Text                      ( Text )
-import           QBXML                          ( Callback
+import           QuickBooks.QBXML               ( Callback
                                                 , CallbackResponse
                                                 )
-import           QBWC                           ( QWCConfig )
+import           QuickBooks.WebConnector        ( QWCConfig )
 import           Servant.API                    ( (:>)
                                                 , (:<|>)
                                                 , Get
