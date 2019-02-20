@@ -37,6 +37,7 @@ data QWCConfig = QWCConfig
     , qcAppSupport :: Text
     , qcAppUniqueName :: Maybe Text
     , qcAppURL :: Text
+    , qcCertURL :: Maybe Text
     , qcAuthFlags :: [AuthFlag]
     , qcFileID :: UUID
     , qcIsReadOnly :: Bool
@@ -130,6 +131,7 @@ generateConnectorFile QWCConfig {..} userName =
         , justXText "AppSupport" qcAppSupport
         , maybeElem "AppUniqueName" qcAppUniqueName
         , justXText "AppURL" qcAppURL
+        , maybeElem "CertURL" qcCertURL
         , justXText "AuthFlags" $ showT $ andAuthFlags qcAuthFlags
         , justXText "FileID" $ showUUID qcFileID
         , justXBool "IsReadOnly" qcIsReadOnly

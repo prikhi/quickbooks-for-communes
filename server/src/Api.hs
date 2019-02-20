@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 module Api where
 
@@ -15,12 +14,15 @@ import           Servant.API                    ( (:>)
                                                 , Get
                                                 , Post
                                                 , ReqBody
+                                                , PlainText
+                                                , NoContent
                                                 )
 import           SOAP                           ( SOAP )
 import           XML                            ( XML )
 
 type API =
          "qwc" :> Get '[XML] (QWCConfig, Text)
+    :<|> "cert" :> Get '[PlainText] NoContent
     :<|> "accountSync" :> ReqBody '[SOAP] Callback :> Post '[SOAP] CallbackResponse
 
 api :: Proxy API

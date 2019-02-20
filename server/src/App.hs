@@ -7,16 +7,21 @@ import Data.Text (Text)
 import Network.Wai (Application)
 import QBWC (QWCConfig(..), QBType(..), Schedule(..))
 import QBXML (Callback(..), CallbackResponse(..))
-import Servant.API ((:<|>)(..) )
+import Servant.API ((:<|>)(..), NoContent(..))
 import Servant.Server (Handler, serve)
 
 app :: Application
 app = serve api server
 
-server :: Handler (QWCConfig, Text) :<|> (Callback -> Handler CallbackResponse)
+server :: Handler (QWCConfig, Text) :<|> Handler NoContent :<|> (Callback -> Handler CallbackResponse)
 server = generateQwc
+    :<|> certRoute
     :<|> accountQuery
 
+
+-- | The QuickBooks WebConnector Configuration for Account Syncing.
+--
+-- TODO: Populate the URLs & IDs from environmental/config variables.
 qwcConfig :: QWCConfig
 qwcConfig =
     QWCConfig
@@ -24,9 +29,10 @@ qwcConfig =
         , qcAppDisplayName = Nothing
         , qcAppID = "QBFC_AS"
         , qcAppName = "QuickBooks For Communes - Account Sync"
-        , qcAppSupport = "https://ada.acorn:3000/support/"
+        , qcAppSupport = "https://lucy.acorn:3000/support/"
         , qcAppUniqueName = Nothing
-        , qcAppURL = "https://ada.acorn:3000/accountSync/"
+        , qcAppURL = "https://lucy.acorn:3000/accountSync/"
+        , qcCertURL = Just "https://lucy.acorn:3000/cert/"
         , qcAuthFlags = []
         , qcFileID = read "bb62c0ae-3a4b-464c-bbf0-39acf68512c7"
         , qcIsReadOnly = False
@@ -38,6 +44,9 @@ qwcConfig =
         , qcStyle = Nothing
         , qcUnattendedModePref = Nothing
         }
+
+certRoute :: Handler NoContent
+certRoute = return NoContent
 
 generateQwc :: Handler (QWCConfig, Text)
 generateQwc = return (qwcConfig, "acc-sync")
