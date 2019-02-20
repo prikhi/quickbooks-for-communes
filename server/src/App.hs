@@ -55,3 +55,5 @@ accountQuery :: Callback -> Handler CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
         return $ ServerVersionResp "0.1.0.0"
+    ClientVersion _ ->
+        return $ ClientVersionResp ""

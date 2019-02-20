@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module XML where
 
+import           Control.Applicative            ( Alternative )
 import           Control.Monad.Catch.Pure       ( MonadThrow
                                                 , runCatch
                                                 )
@@ -30,7 +31,7 @@ class ToXML a where
     toXML :: a -> Xml Elem
 
 class FromXML a where
-    fromXML :: MonadThrow m => Element -> m a
+    fromXML :: (Alternative m, MonadThrow m) => Element -> m a
 
 -- | Create XML requests with xmlgen & parse responses with xml-conduits.
 data XML deriving Typeable
