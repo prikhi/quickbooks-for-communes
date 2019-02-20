@@ -5,8 +5,7 @@ module App where
 import Api (api)
 import Data.Text (Text)
 import Network.Wai (Application)
-import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..))
-import QuickBooks.QBXML (Callback(..), CallbackResponse(..))
+import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..))
 import Servant.API ((:<|>)(..), NoContent(..))
 import Servant.Server (Handler, serve)
 

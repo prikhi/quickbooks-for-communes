@@ -12,9 +12,16 @@ module QuickBooks.WebConnector
     , SOAPStyle(..)
     , UnattendedModePreference(..)
     , generateConnectorFile
+      -- * WebConnector Callbacks & Responses
+    , Callback(..)
+    , CallbackResponse(..)
     )
 where
 
+import           Control.Applicative            ( (<|>) )
+import           Control.Monad.Catch.Pure       ( MonadThrow(..)
+                                                , SomeException
+                                                )
 import           Data.Maybe                     ( catMaybes )
 import           Data.Text                      ( Text
                                                 , pack
@@ -23,11 +30,21 @@ import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
 import           Text.XML.Generator             ( Xml
                                                 , Elem
+                                                , Namespace
                                                 , xelemWithText
                                                 , xelem
                                                 , xelems
+                                                , xelemQ
+                                                , namespace
                                                 )
-import           XML                            ( ToXML(..) )
+import           Text.XML                       ( Node(..)
+                                                , Element(..)
+                                                )
+import           XML                            ( FromXML(..)
+                                                , ToXML(..)
+                                                )
+
+-- Config File
 
 data QWCConfig = QWCConfig
     { qcAppDescription :: Text
@@ -154,3 +171,57 @@ generateConnectorFile QWCConfig {..} userName =
     showT = pack . show
     showUUID :: UUID -> Text
     showUUID uuid = "{" <> UUID.toText uuid <> "}"
+
+
+-- Callbacks
+
+data Callback
+    = ServerVersion
+    | ClientVersion Text
+    deriving (Show)
+
+instance FromXML Callback where
+    fromXML e = parseServerVersion e
+            <|> parseClientVersion e
+
+parseServerVersion :: MonadThrow m => Element -> m Callback
+parseServerVersion el =
+    if elementName el == "{http://developer.intuit.com/}serverVersion"
+        then return ServerVersion
+        else parsingError "ServerVersion parse failure"
+
+parseClientVersion :: MonadThrow m => Element -> m Callback
+parseClientVersion el =
+    if elementName el == "{http://developer.intuit.com/}clientVersion"
+        then case elementNodes el of
+            [NodeElement strVersion] -> parseVersion strVersion
+            e -> parsingError $ "Invalid clientVersion Body" ++ show e
+        else parsingError "ClientVersion parse failure"
+  where
+    parseVersion vEl =
+        if elementName vEl == "{http://developer.intuit.com/}strVersion"
+            then case elementNodes vEl of
+                [NodeContent v] -> return $ ClientVersion v
+                _               -> parsingError "Invalid clientVersion Content"
+            else parsingError $ "Invalid clientVersion Body" ++ show vEl
+
+parsingError :: MonadThrow m => String -> m a
+parsingError s = throwM (error s :: SomeException)
+
+data CallbackResponse
+    = ServerVersionResp Text
+    | ClientVersionResp Text
+    deriving (Show)
+
+instance ToXML CallbackResponse where
+    toXML r = case r of
+        ServerVersionResp v ->
+            xelemQ qbNamespace "serverVersionResponse" $
+                xelemQ qbNamespace "serverVersionResult" v
+        ClientVersionResp v ->
+            xelemQ qbNamespace "clientVersionResponse" $
+                xelemQ qbNamespace "clientVersionResult" v
+
+
+qbNamespace :: Namespace
+qbNamespace = namespace "" "http://developer.intuit.com/"
