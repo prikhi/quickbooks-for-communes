@@ -32,6 +32,7 @@ library:
         - exceptions
         - http-media
         - mtl
+        - random
         - servant
         - servant-server
         - wai

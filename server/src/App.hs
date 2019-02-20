@@ -3,13 +3,15 @@
 module App where
 
 import Api (api)
+import Control.Monad.IO.Class (liftIO)
 import Data.Text (Text, pack)
 import Data.Version (showVersion)
 import Network.Wai (Application)
 import Paths_qbfc (version)
-import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..))
+import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..), AuthResult(..))
 import Servant.API ((:<|>)(..), NoContent(..))
 import Servant.Server (Handler, serve)
+import System.Random (randomIO)
 
 -- | The API server as a WAI Application.
 app :: Application
@@ -68,6 +70,14 @@ generateQwc = return (qwcConfig, "acc-sync")
 accountQuery :: Callback -> Handler CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
+        -- Use the version specified in package.yaml
         return . ServerVersionResp . pack $ showVersion version
     ClientVersion _ ->
+        -- Accept all Client versions
         return $ ClientVersionResp ""
+    Authenticate _ _ -> do
+        -- Authentication always succeeds
+        -- TODO: check username/pass, save ticket to database, pass
+        -- companyfile if known
+        ticket <- liftIO randomIO
+        return $ AuthenticateResp ticket ValidUser Nothing Nothing

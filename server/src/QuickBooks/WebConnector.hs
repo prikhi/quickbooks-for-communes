@@ -15,6 +15,11 @@ module QuickBooks.WebConnector
       -- * WebConnector Callbacks & Responses
     , Callback(..)
     , CallbackResponse(..)
+    , Username(..)
+    , Password(..)
+    , AuthResult(..)
+    , PostponeMinutes(..)
+    , AutorunMinutes(..)
     )
 where
 
@@ -25,6 +30,7 @@ import           Control.Monad.Catch.Pure       ( MonadThrow(..)
 import           Data.Maybe                     ( catMaybes )
 import           Data.Text                      ( Text
                                                 , pack
+                                                , unpack
                                                 )
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
@@ -35,10 +41,12 @@ import           Text.XML.Generator             ( Xml
                                                 , xelem
                                                 , xelems
                                                 , xelemQ
+                                                , xtext
                                                 , namespace
                                                 )
 import           Text.XML                       ( Node(..)
                                                 , Element(..)
+                                                , Name
                                                 )
 import           XML                            ( FromXML(..)
                                                 , ToXML(..)
@@ -79,6 +87,7 @@ data AuthFlag
     | QBEnterprise
     deriving (Show)
 
+-- TODO: if list contains All, just return sum, else nub list and fold
 andAuthFlags :: [AuthFlag] -> Integer
 andAuthFlags = foldr (\flag acc -> toInt flag + acc) 0
   where
@@ -167,8 +176,6 @@ generateConnectorFile QWCConfig {..} userName =
     maybeElem name = fmap $ xelemWithText name
     maybeElemWith name f = maybeElem name . fmap f
     justXBool name bool = justXText name $ if bool then "true" else "false"
-    showT :: Show a => a -> Text
-    showT = pack . show
     showUUID :: UUID -> Text
     showUUID uuid = "{" <> UUID.toText uuid <> "}"
 
@@ -178,11 +185,14 @@ generateConnectorFile QWCConfig {..} userName =
 data Callback
     = ServerVersion
     | ClientVersion Text
+    | Authenticate Username Password
     deriving (Show)
 
 instance FromXML Callback where
     fromXML e = parseServerVersion e
             <|> parseClientVersion e
+            <|> parseAuthenticate e
+            <|> parsingError "Unsupported Callback"
 
 parseServerVersion :: MonadThrow m => Element -> m Callback
 parseServerVersion el =
@@ -194,23 +204,54 @@ parseClientVersion :: MonadThrow m => Element -> m Callback
 parseClientVersion el =
     if elementName el == "{http://developer.intuit.com/}clientVersion"
         then case elementNodes el of
-            [NodeElement strVersion] -> parseVersion strVersion
+            [NodeElement strVersion] ->
+                ClientVersion
+                    <$> parseTextElement
+                            "{http://developer.intuit.com/}strVersion"
+                            strVersion
             e -> parsingError $ "Invalid clientVersion Body" ++ show e
         else parsingError "ClientVersion parse failure"
-  where
-    parseVersion vEl =
-        if elementName vEl == "{http://developer.intuit.com/}strVersion"
-            then case elementNodes vEl of
-                [NodeContent v] -> return $ ClientVersion v
-                _               -> parsingError "Invalid clientVersion Content"
-            else parsingError $ "Invalid clientVersion Body" ++ show vEl
 
+parseAuthenticate :: MonadThrow m => Element -> m Callback
+parseAuthenticate el =
+    if elementName el == "{http://developer.intuit.com/}authenticate"
+        then case elementNodes el of
+            [NodeElement userEl, NodeElement passEl] -> do
+                user <-
+                    Username
+                        <$> parseTextElement
+                                "{http://developer.intuit.com/}strUserName"
+                                userEl
+                pass <-
+                    Password
+                        <$> parseTextElement
+                                "{http://developer.intuit.com/}strPassword"
+                                passEl
+                return $ Authenticate user pass
+            _ -> parsingError "Invalid authenticate Content"
+        else parsingError "Invalid authenticate Body"
+
+-- | Parse a specific XML element containing only Text content.
+parseTextElement :: MonadThrow m => Name -> Element -> m Text
+parseTextElement name tEl = if elementName tEl == name
+    then case elementNodes tEl of
+        [NodeContent v] -> return v
+        _ -> parsingError $ "Invalid Text Element Content for " <> show name
+    else parsingError $ "Invalid Text Element Body for " <> show name
+
+-- | Throw an XML parsing error.
 parsingError :: MonadThrow m => String -> m a
 parsingError s = throwM (error s :: SomeException)
 
+
 data CallbackResponse
     = ServerVersionResp Text
+    -- ^ Respond with the Server's version number.
     | ClientVersionResp Text
+    -- ^ Accept the Client's version or issue a warning or error.
+    -- TODO: Refactor Text into Type w/ valid states(Accept, Warn, Error)
+    | AuthenticateResp UUID AuthResult (Maybe PostponeMinutes) (Maybe AutorunMinutes)
+    -- ^ Return a session ticket & the authentication result
     deriving (Show)
 
 instance ToXML CallbackResponse where
@@ -221,7 +262,69 @@ instance ToXML CallbackResponse where
         ClientVersionResp v ->
             xelemQ qbNamespace "clientVersionResponse" $
                 xelemQ qbNamespace "clientVersionResult" v
+        AuthenticateResp ticket result maybePostpone maybeAutorun ->
+            xelemQ qbNamespace "authenticateResponse" $
+                xelemQ qbNamespace "authenticateResult" $
+                    qbStringArray $ catMaybes
+                        [ Just $ "{" <> UUID.toText ticket <> "}"
+                        , Just $ showT result
+                        , fmap showT maybePostpone
+                        , fmap showT maybeAutorun
+                        ]
 
+-- | Render a Text list as a QuickBooks String Array.
+qbStringArray :: [Text] -> Xml Elem
+qbStringArray = xelems . map (xelemQ qbNamespace "string" . xtext)
 
+-- | Render a showable type as Text.
+showT :: Show a => a -> Text
+showT = pack . show
+
+-- | The XML Namespace for QuickBooks XML elements.
 qbNamespace :: Namespace
 qbNamespace = namespace "" "http://developer.intuit.com/"
+
+-- Callback Types
+
+-- | The Username passed to the 'Authenticate' callback.
+newtype Username
+    = Username { fromUsername :: Text }
+    deriving (Show, Eq)
+
+-- | The Password passed to the 'Authenticate' callback.
+newtype Password
+    = Password { fromPassword :: Text }
+    deriving (Show, Eq)
+
+-- | The result of an Authentication attempt.
+data AuthResult
+    = ValidUser -- ^ The given 'Username' & 'Password' is valid. Connect to
+                -- the currently open QuickBooks Company File.
+    | CompanyFile Text -- ^ The given 'Username' & 'Password' is valid.
+                       -- Connect to the given QuickBooks Company File.
+    | InvalidUser -- ^ An invalid 'Username' or 'Password' was supplied.
+    | Busy -- ^ The Application is currently busy, try again later.
+    deriving (Eq)
+
+instance Show AuthResult where
+    show val = case val of
+        ValidUser -> ""
+        InvalidUser -> "nvu"
+        Busy -> "busy"
+        CompanyFile t  -> unpack t
+
+-- | The number of minutes to postpone an update by.
+newtype PostponeMinutes
+    = PostponeMinutes { fromPostponeMinutes :: Integer }
+    deriving (Eq)
+
+instance Show PostponeMinutes where
+    show = show . fromPostponeMinutes
+
+-- | The minimum interval between automatic updates.
+newtype AutorunMinutes
+    = AutorunMinutes { fromAutorunMinutes :: Integer }
+    deriving (Eq)
+
+instance Show AutorunMinutes where
+    show = show . fromAutorunMinutes
