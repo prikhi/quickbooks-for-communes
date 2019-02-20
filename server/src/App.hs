@@ -3,8 +3,10 @@
 module App where
 
 import Api (api)
-import Data.Text (Text)
+import Data.Text (Text, pack)
+import Data.Version (showVersion)
 import Network.Wai (Application)
+import Paths_qbfc (version)
 import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..))
 import Servant.API ((:<|>)(..), NoContent(..))
 import Servant.Server (Handler, serve)
@@ -66,6 +68,6 @@ generateQwc = return (qwcConfig, "acc-sync")
 accountQuery :: Callback -> Handler CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
-        return $ ServerVersionResp "0.1.0.0"
+        return . ServerVersionResp . pack $ showVersion version
     ClientVersion _ ->
         return $ ClientVersionResp ""
