@@ -10,10 +10,18 @@ import QBXML (Callback(..), CallbackResponse(..))
 import Servant.API ((:<|>)(..), NoContent(..))
 import Servant.Server (Handler, serve)
 
+-- | The API server as a WAI Application.
 app :: Application
 app = serve api server
 
-server :: Handler (QWCConfig, Text) :<|> Handler NoContent :<|> (Callback -> Handler CallbackResponse)
+-- | Represents the Route Handlers for our server.
+type Routes =
+         Handler (QWCConfig, Text)
+    :<|> Handler NoContent
+    :<|> (Callback -> Handler CallbackResponse)
+
+-- | Join the separate route handlers to create our API.
+server :: Routes
 server = generateQwc
     :<|> certRoute
     :<|> accountQuery
@@ -45,12 +53,17 @@ qwcConfig =
         , qcUnattendedModePref = Nothing
         }
 
+-- | An empty route that does absolutely nothing. This is used for SSL
+-- certificate verification by the WebConnector.
 certRoute :: Handler NoContent
 certRoute = return NoContent
 
+-- | Generate a QWC File for the @/accountSync/@ route using the
+-- "qwcConfig" & the @acc-sync@ Username.
 generateQwc :: Handler (QWCConfig, Text)
 generateQwc = return (qwcConfig, "acc-sync")
 
+-- | Perform querying/syncing operations for the QuickBooks Accounts.
 accountQuery :: Callback -> Handler CallbackResponse
 accountQuery r = case r of
     ServerVersion ->

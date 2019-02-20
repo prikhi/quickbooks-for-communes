@@ -1,6 +1,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{- | This module contains a "SOAP" content type for Servant Routes that
+assumes that requests & responses are simple XML embedded in SOAP @Envelope@
+& @Body@ elements.
+-}
 module SOAP where
 
 import           Control.Monad.Catch.Pure       ( SomeException
@@ -35,17 +39,25 @@ import           XML                            ( FromXML(..)
 
 data SOAP deriving Typeable
 
+-- | Expect SOAP requests using the @text/xml@ Content-Type with a UTF-8
+-- Character Set.
+--
+-- Note: We use @text/xml@ instead of @application/xml@ since that is the
+-- Content Type of the WebConnector's POST requests.
 instance Accept SOAP where
     contentType _ = "text" M.// "xml" M./: ("charset", "utf-8")
 
+-- | Parse the XML embedded in a SOAP Envelope/Body wrapper.
 instance (FromXML a) => MimeUnrender SOAP a where
     mimeUnrender _ bs = either (Left . show) (parseSoapBody . documentRoot)
         $ parseLBS def bs
 
+-- | Render the type as XML with a SOAP Envelope/Body wrapper.
 instance (ToXML a) => MimeRender SOAP a where
     mimeRender _ = xrender . doc defaultDocInfo . soapWrapper . toXML
 
 
+-- | Parse a type out of XML embedded in a SOAP @Envelope@ and @Body@.
 parseSoapBody :: FromXML a => Element -> Either String a
 parseSoapBody e = first show . runCatch $ parseEnvelope e
   where
@@ -68,10 +80,12 @@ parseSoapBody e = first show . runCatch $ parseEnvelope e
 
 
 
+-- | Wrap generic XML with SOAP @Envelope@ and @Body@ elements.
 soapWrapper :: Xml Elem -> Xml Elem
 soapWrapper el =
     xelemQ soapNamespace "Envelope" $ xelemQ soapNamespace "Body" el
 
 
+-- | The XML namespace for SOAP envelopes. Uses the @soap@ XML prefix.
 soapNamespace :: Namespace
 soapNamespace = namespace "soap" "http://schemas.xmlsoap.org/soap/envelope/"

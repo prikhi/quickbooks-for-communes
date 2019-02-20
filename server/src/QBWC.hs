@@ -50,6 +50,7 @@ data QWCConfig = QWCConfig
     , qcUnattendedModePref :: Maybe UnattendedModePreference
     } deriving (Show)
 
+-- | Generate the XML for a QWC File using a Configuration & Username.
 instance ToXML (QWCConfig, Text) where
     toXML (c, u) = generateConnectorFile c u
 

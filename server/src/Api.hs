@@ -20,6 +20,7 @@ import           Servant.API                    ( (:>)
 import           SOAP                           ( SOAP )
 import           XML                            ( XML )
 
+-- | Represents the API presented by our server.
 type API =
          "qwc" :> Get '[XML] (QWCConfig, Text)
     :<|> "cert" :> Get '[PlainText] NoContent
