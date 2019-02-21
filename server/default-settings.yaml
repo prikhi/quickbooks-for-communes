@@ -18,4 +18,5 @@ tls:
     cert-chain-files: []
 
 account-sync:
+    username: "account-sync"
     interval: 10

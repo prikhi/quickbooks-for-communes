@@ -53,6 +53,10 @@ data AppConfig =
         -- ^ Optional paths to your TLS root/intermediate certificate
         -- files.
 
+        , appAccountSyncUsername :: Text
+        -- ^ The username to expect when syncing the QUickBooks Accounts.
+        , appAccountSyncPassword :: Text
+        -- ^ The password to expect when syncing the QUickBooks Accounts.
         , appAccountSyncInterval :: Integer
         -- ^ The number of minutes to wait between syncing the QuickBooks
         -- Accounts.
@@ -65,17 +69,25 @@ instance FromJSON AppConfig where
         host <- fmap fromString $ o .: "host"
         hostname <- o .: "hostname"
         port <- o .: "port"
-        (accSyncInterval, accSyncID) <- o .: "account-sync" >>= withObject "account-sync"
-            (\acc -> (,) <$> acc .: "interval" <*> acc .: "id")
-        (useTLS, allowInsecure, keyFile, certFile, chainFiles) <- o .: "tls" >>= withObject "tls"
-            (\tls ->
-                (,,,,)
-                    <$> tls .: "enable"
-                    <*> tls .: "allow-insecure"
-                    <*> tls .: "key-file"
-                    <*> tls .: "cert-file"
-                    <*> tls .: "cert-chain-files"
-            )
+        (accUsername, accPassword, accSyncInterval, accSyncID) <- o .: "account-sync"
+            >>= withObject "account-sync"
+                    (\acc ->
+                        (,,,)
+                            <$> acc .: "username"
+                            <*> acc .: "password"
+                            <*> acc .: "interval"
+                            <*> acc .: "id"
+                    )
+        (useTLS, allowInsecure, keyFile, certFile, chainFiles) <- o .: "tls"
+            >>= withObject "tls"
+                    (\tls ->
+                        (,,,,)
+                            <$> tls .: "enable"
+                            <*> tls .: "allow-insecure"
+                            <*> tls .: "key-file"
+                            <*> tls .: "cert-file"
+                            <*> tls .: "cert-chain-files"
+                    )
         return AppConfig
             { appHost = host
             , appHostname = hostname
@@ -87,6 +99,8 @@ instance FromJSON AppConfig where
             , appTLSCertFile = certFile
             , appTLSChainFiles = chainFiles
 
+            , appAccountSyncUsername = accUsername
+            , appAccountSyncPassword = accPassword
             , appAccountSyncInterval = accSyncInterval
             , appAccountSyncID = accSyncID
             }

@@ -1,31 +1,46 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
-module App where
+module App (app) where
 
-import Api (api)
-import Control.Monad.IO.Class (liftIO)
+import Api (API, api)
+import Config (AppConfig(..))
+import Control.Exception.Safe (try)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Except (ExceptT(..))
+import Control.Monad.Reader (MonadReader, ReaderT, runReaderT, ask, asks)
 import Data.Text (Text, pack)
+import qualified Data.Text as T
 import Data.Version (showVersion)
 import Network.Wai (Application)
 import Paths_qbfc (version)
-import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..), AuthResult(..))
-import Servant.API ((:<|>)(..), NoContent(..))
-import Servant.Server (Handler, serve)
+import QuickBooks.WebConnector (QWCConfig(..), QBType(..), Schedule(..), Callback(..), CallbackResponse(..), AuthResult(..), Username(..), Password(..))
+import Servant.API ((:<|>)((:<|>)), NoContent(..))
+import Servant.Server (ServerT, Server, Handler(..), serve, hoistServer)
 import System.Random (randomIO)
 
 -- | The API server as a WAI Application.
-app :: Application
-app = serve api server
+app :: AppConfig -> Application
+app cfg =
+    serve api appServer
+  where
+    appServer :: Server API
+    appServer = hoistServer api transform server
+    -- Run the AppM Route, Catch IO Errors, & Construct a Handler from the
+    -- Result.
+    transform :: AppM a -> Handler a
+    transform m = Handler $ ExceptT $ try $ runReaderT (fromAppM m) cfg
 
--- | Represents the Route Handlers for our server.
-type Routes =
-         Handler (QWCConfig, Text)
-    :<|> Handler NoContent
-    :<|> (Callback -> Handler CallbackResponse)
+-- | The monadic stack the handler routes run under.
+newtype AppM a
+    = AppM { fromAppM :: ReaderT AppConfig IO a }
+    deriving (Functor, Applicative, Monad, MonadIO, MonadReader AppConfig)
+
 
 -- | Join the separate route handlers to create our API.
-server :: Routes
-server = generateQwc
+server :: ServerT API AppM
+server = generateAccountSyncQwc
     :<|> certRoute
     :<|> accountQuery
 
@@ -33,41 +48,50 @@ server = generateQwc
 -- | The QuickBooks WebConnector Configuration for Account Syncing.
 --
 -- TODO: Populate the URLs & IDs from environmental/config variables.
-qwcConfig :: QWCConfig
-qwcConfig =
-    QWCConfig
+accountSyncQwcConfig :: AppConfig -> QWCConfig
+accountSyncQwcConfig cfg =
+    let url path = T.concat
+            [ "https://"
+            , appHostname cfg
+            , ":"
+            , pack (show $ appPort cfg)
+            , path
+            ]
+    in QWCConfig
         { qcAppDescription = "Syncing Accounts to QBFC"
         , qcAppDisplayName = Nothing
         , qcAppID = "QBFC_AS"
         , qcAppName = "QuickBooks For Communes - Account Sync"
-        , qcAppSupport = "https://lucy.acorn:3000/support/"
+        , qcAppSupport = url "/support/"
         , qcAppUniqueName = Nothing
-        , qcAppURL = "https://lucy.acorn:3000/accountSync/"
-        , qcCertURL = Just "https://lucy.acorn:3000/cert/"
+        , qcAppURL = url "/accountSync/"
+        , qcCertURL = Just $ url "/cert/"
         , qcAuthFlags = []
-        , qcFileID = read "bb62c0ae-3a4b-464c-bbf0-39acf68512c7"
+        , qcFileID = appAccountSyncID cfg
         , qcIsReadOnly = False
         , qcNotify = False
-        , qcOwnerID = read "bb62c0ae-3a4b-464c-bbf0-39acf68512c7"
+        , qcOwnerID = appAccountSyncID cfg
         , qcPersonalDataPref = Nothing
         , qcQBType = Financial
-        , qcScheduler = Just (EveryMinute 1)
+        , qcScheduler = Just $ EveryMinute $ appAccountSyncInterval cfg
         , qcStyle = Nothing
         , qcUnattendedModePref = Nothing
         }
 
 -- | An empty route that does absolutely nothing. This is used for SSL
 -- certificate verification by the WebConnector.
-certRoute :: Handler NoContent
+certRoute :: Monad m => m NoContent
 certRoute = return NoContent
 
 -- | Generate a QWC File for the @/accountSync/@ route using the
 -- "qwcConfig" & the @acc-sync@ Username.
-generateQwc :: Handler (QWCConfig, Text)
-generateQwc = return (qwcConfig, "acc-sync")
+generateAccountSyncQwc :: MonadReader AppConfig m => m (QWCConfig, Text)
+generateAccountSyncQwc = do
+    cfg <- ask
+    return (accountSyncQwcConfig cfg, appAccountSyncUsername cfg)
 
 -- | Perform querying/syncing operations for the QuickBooks Accounts.
-accountQuery :: Callback -> Handler CallbackResponse
+accountQuery :: Callback -> AppM CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
         -- Use the version specified in package.yaml
@@ -75,9 +99,13 @@ accountQuery r = case r of
     ClientVersion _ ->
         -- Accept all Client versions
         return $ ClientVersionResp ""
-    Authenticate _ _ -> do
-        -- Authentication always succeeds
-        -- TODO: check username/pass, save ticket to database, pass
-        -- companyfile if known
+    Authenticate (Username user) (Password pass) -> do
+        -- Authentication succeeds when the User matches
+        -- TODO: save ticket to database, pass companyfile if known
+        expectedUser <- asks appAccountSyncUsername
+        expectedPass <- asks appAccountSyncPassword
         ticket <- liftIO randomIO
-        return $ AuthenticateResp ticket ValidUser Nothing Nothing
+        if expectedUser /= user || expectedPass /= pass then
+            return $ AuthenticateResp ticket InvalidUser Nothing Nothing
+        else
+            return $ AuthenticateResp ticket ValidUser Nothing Nothing

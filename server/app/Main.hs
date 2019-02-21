@@ -34,4 +34,4 @@ main = do
             }
         settings =
             setHost (appHost cfg) $ setPort (appPort cfg) defaultSettings
-    runner settings $ logStdoutDev app
+    runner settings $ logStdoutDev $ app cfg
