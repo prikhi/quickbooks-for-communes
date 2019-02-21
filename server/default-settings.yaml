@@ -1,0 +1,21 @@
+---
+# These are sensible defaults which can be overriden in your own settings.yaml
+# file.
+#
+# Note: You must still define the following keys:
+#
+#   * account-sync.uuid : UUID
+
+host: "*"
+hostname: "localhost"
+port: 3000
+
+tls:
+    enable: true
+    allow-insecure: false
+    key-file: "key.pem"
+    cert-file: "cert.pem"
+    cert-chain-files: []
+
+account-sync:
+    interval: 10

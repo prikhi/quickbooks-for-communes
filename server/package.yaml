@@ -19,6 +19,9 @@ description: >
     Please see the README on GitHub at
     <https://github.com/prikhi/QuickBooks-For-Communes#readme>
 
+data-files:
+    - default-settings.yaml
+
 dependencies:
     - base >= 4.7 && < 5
     - bytestring
@@ -29,15 +32,19 @@ dependencies:
 library:
     source-dirs: src
     dependencies:
+        - aeson
         - exceptions
         - http-media
         - mtl
         - random
+        - safe-exceptions
         - servant
         - servant-server
+        - streaming-commons
         - wai
         - xml-conduit
         - xml-types
+        - yaml
 
 executables:
     qbfc-server:

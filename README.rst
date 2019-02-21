@@ -27,10 +27,38 @@ We use `Stack`_ to build the server & manage it's dependencies:
    stack build
    stack exec qbfc-server
 
-The QuickBooks WebConnector requires SSL when connecting to hosts other than
+Configuration is done through YAML files. Some sensible defaults are loaded
+from the ``default-settings.yaml`` file, but this does not contain
+instance-specific settings. Therefore, you will need to create a
+``settings.yaml`` file in the ``server`` directory, with at least the following
+fields:
+
+.. code:: yaml
+
+   account-sync:
+      id: "<randomly-generated-uuid>"
+
+Unless you're running the server on the same system as the WebConnector, you'll
+need to set the ``hostname`` field as well.
+
+You can generate UUIDs by running the following commands in ``stack repl``::
+
+   :set -XScopedTypeVariables
+   import Data.UUID
+   import System.Random
+   (randomIO :: IO UUID) >>= print
+
+TODO: Add a script for generating minimum ``settings.yaml`` file with
+randomized values.
+
+
+TLS Configuration
+=================
+
+The QuickBooks WebConnector requires TLS when connecting to hosts other than
 ``localhost``. You can use ``openssl`` to generate the self-signed certificate
 and key files(if your server is accessible from the internet, you should use a
-normal SSL certificate instead):
+normal TLS certificate instead):
 
 .. code:: bash
 
@@ -57,7 +85,7 @@ tell your QuickBooks computer to trust it:
    ``Import`` button
 #. Load your generated ``cert.pem`` file
 #. Test the certificate by visiting ``https://qbfc-server.local:3000/cert/``,
-   you should see a blank page instead of an SSL error or Insecure Webpage
+   you should see a blank page instead of an TLS error or Insecure Webpage
    warning.
 
 .. _Stack: https://docs.haskellstack.org/en/stable/README/
