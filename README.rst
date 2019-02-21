@@ -16,6 +16,53 @@ This is still in the alpha stage, but under active development.
 .. _QuickBooks WebConnector: https://developer.intuit.com/app/developer/qbdesktop/docs/get-started/get-started-with-quickbooks-web-connector
 
 
+Server
+######
+
+We use `Stack`_ to build the server & manage it's dependencies:
+
+.. code:: bash
+
+   cd server
+   stack build
+   stack exec qbfc-server
+
+The QuickBooks WebConnector requires SSL when connecting to hosts other than
+``localhost``. You can use ``openssl`` to generate the self-signed certificate
+and key files(if your server is accessible from the internet, you should use a
+normal SSL certificate instead):
+
+.. code:: bash
+
+   cd server
+   openssl req -x509 -newkey rsa:4096 -sha256 -nodes -days 3650 \
+      -subj '/C=US/ST=Virginia/L=Mineral/O=Southern Exposure/CN=<qbfc-server-domain>' \
+      -keyout key.pem -out cert.pem
+
+Replace ``<qbfc-server-domain>`` with the FQDN of your QuickBooks for
+Communards server(e.g., ``accounting.acorn``). If your server does not have a
+domain name, you can use any arbitrary domain, provided you add it to the
+``hosts`` file on the computer running QuickBooks. This file usually lives at
+``C:\Windows\System32\Drivers\etc\hosts``::
+
+   192.168.1.XXX qbfc-server.local
+
+By default, QuickBooks will not trust a self-signed certificate. You'll need to
+tell your QuickBooks computer to trust it:
+
+#. Open Internet Explorer
+#. Open the settings menu and select ``Internet Options``
+#. Click the ``Content`` tab and then the ``Certificates`` button
+#. Click the ``Trusted Root Certification Authorities`` tab and then the
+   ``Import`` button
+#. Load your generated ``cert.pem`` file
+#. Test the certificate by visiting ``https://qbfc-server.local:3000/cert/``,
+   you should see a blank page instead of an SSL error or Insecure Webpage
+   warning.
+
+.. _Stack: https://docs.haskellstack.org/en/stable/README/
+
+
 Documentation
 #############
 
