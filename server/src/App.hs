@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
 module App
     ( app
+    , AppEnv(..)
     )
 where
 
@@ -11,22 +13,41 @@ import           Api                            ( API
                                                 , api
                                                 )
 import           Config                         ( AppConfig(..) )
-import           Control.Exception.Safe         ( try )
+import           Control.Exception.Safe         ( MonadThrow
+                                                , try
+                                                )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
+                                                )
+import           Control.Monad.IO.Unlift        ( MonadUnliftIO(..)
+                                                , wrappedWithRunInIO
                                                 )
 import           Control.Monad.Except           ( ExceptT(..) )
 import           Control.Monad.Reader           ( MonadReader
                                                 , ReaderT
                                                 , runReaderT
-                                                , ask
                                                 , asks
                                                 )
+import           Data.Pool                      ( Pool )
 import           Data.Text                      ( Text
                                                 , pack
                                                 )
 import qualified Data.Text                     as T
+import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
+import           Database.Persist.Sql           ( SqlBackend
+                                                , runSqlPool
+                                                , insert
+                                                , getBy
+                                                )
+import           DB.Schema                      ( Session(..)
+                                                , Unique(UniqueTicket)
+                                                )
+import           DB.Fields                      ( UUIDField(..)
+                                                , SessionType(..)
+                                                , SessionStatus(..)
+                                                , SessionError(..)
+                                                )
 import           Network.Wai                    ( Application )
 import           Paths_qbfc                     ( version )
 import           QuickBooks.WebConnector        ( QWCConfig(..)
@@ -38,9 +59,7 @@ import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , Username(..)
                                                 , Password(..)
                                                 )
-import           Servant.API                    ( (:<|>)((:<|>))
-                                                , NoContent(..)
-                                                )
+import           Servant.API
 import           Servant.Server                 ( ServerT
                                                 , Server
                                                 , Handler(..)
@@ -50,20 +69,41 @@ import           Servant.Server                 ( ServerT
 import           System.Random                  ( randomIO )
 
 -- | The API server as a WAI Application.
-app :: AppConfig -> Application
-app cfg = serve api appServer
+app :: AppEnv -> Application
+app env = serve api appServer
   where
     appServer :: Server API
     appServer = hoistServer api transform server
     -- Run the AppM Route, Catch IO Errors, & Construct a Handler from the
     -- Result.
     transform :: AppM a -> Handler a
-    transform m = Handler $ ExceptT $ try $ runReaderT (fromAppM m) cfg
+    transform m = Handler $ ExceptT $ try $ runReaderT (fromAppM m) env
+
+-- | The environment the application runs in. This includes static
+-- configuration data as well as global runtime resources like the database
+-- connection pool.
+data AppEnv
+    = AppEnv
+        { appConfig :: AppConfig
+        , appDBPool :: Pool SqlBackend
+        }
 
 -- | The monadic stack the handler routes run under.
 newtype AppM a
-    = AppM { fromAppM :: ReaderT AppConfig IO a }
-    deriving (Functor, Applicative, Monad, MonadIO, MonadReader AppConfig)
+    = AppM { fromAppM :: ReaderT AppEnv IO a }
+    deriving (Functor, Applicative, Monad, MonadThrow, MonadIO, MonadReader AppEnv)
+
+-- | Wrap/unwrap the ReaderT instance with 'AppM'/'fromAppM' calls.
+instance MonadUnliftIO AppM where
+    withRunInIO = wrappedWithRunInIO AppM fromAppM
+
+-- | The monad for the application's database queries.
+type AppSqlM a = ReaderT SqlBackend AppM a
+
+-- | Run a series of database queries in a transaction. The transaction
+-- will be rolled back when an exception is thrown.
+runDB :: AppSqlM a -> AppM a
+runDB query = asks appDBPool >>= runSqlPool query
 
 
 -- | Join the separate route handlers to create our API.
@@ -72,8 +112,6 @@ server = generateAccountSyncQwc :<|> certRoute :<|> accountQuery
 
 
 -- | The QuickBooks WebConnector Configuration for Account Syncing.
---
--- TODO: Populate the URLs & IDs from environmental/config variables.
 accountSyncQwcConfig :: AppConfig -> QWCConfig
 accountSyncQwcConfig cfg
     = let
@@ -113,9 +151,14 @@ certRoute = return NoContent
 
 -- | Generate a QWC File for the @/accountSync/@ route using the
 -- "qwcConfig" & the @acc-sync@ Username.
-generateAccountSyncQwc :: MonadReader AppConfig m => m (QWCConfig, Text)
+--
+-- TODO: The @encoding@ attribute in the XML declaration makes the
+-- WebConnector not accept the given file. Should try to fix this
+-- somehow... Maybe directly return the rendered & processed ByteString
+-- from this route instead of XML?
+generateAccountSyncQwc :: MonadReader AppEnv m => m (QWCConfig, Text)
 generateAccountSyncQwc = do
-    cfg <- ask
+    cfg <- asks appConfig
     return (accountSyncQwcConfig cfg, appAccountSyncUsername cfg)
 
 -- | Perform querying/syncing operations for the QuickBooks Accounts.
@@ -129,11 +172,30 @@ accountQuery r = case r of
         return $ ClientVersionResp ""
     Authenticate (Username user) (Password pass) -> do
         -- Authentication succeeds when the User matches
-        -- TODO: save ticket to database, pass companyfile if known
+        -- TODO: pass companyfile if known
         -- TODO: Use bcrypt to hash password & compare to stored hash
-        expectedUser <- asks appAccountSyncUsername
-        expectedPass <- asks appAccountSyncPassword
-        ticket       <- liftIO randomIO
-        if expectedUser /= user || expectedPass /= pass
-            then return $ AuthenticateResp ticket InvalidUser Nothing Nothing
-            else return $ AuthenticateResp ticket ValidUser Nothing Nothing
+        expectedUser <- asks $ appAccountSyncUsername . appConfig
+        expectedPass <- asks $ appAccountSyncPassword . appConfig
+        let (authResult, status, authError) =
+                if expectedUser /= user || expectedPass /= pass
+                    then (InvalidUser, Completed, Just InvalidAuthentication)
+                    else (ValidUser, Initiated, Nothing)
+        ticket <- runDB $ do
+            ticket <- generateUniqueTicket
+            insert Session
+                { sessionTicket = UUIDField ticket
+                , sessionType   = AccountSync
+                , sessionStatus = status
+                , sessionError  = authError
+                }
+            return ticket
+        return $ AuthenticateResp ticket authResult Nothing Nothing
+
+-- | Generate a 'Session' 'UUID' that does not yet exist in the
+-- database.
+generateUniqueTicket :: AppSqlM UUID
+generateUniqueTicket = do
+    ticket <- liftIO randomIO
+    getBy (UniqueTicket $ UUIDField ticket) >>= \case
+        Nothing -> return ticket
+        Just _  -> generateUniqueTicket

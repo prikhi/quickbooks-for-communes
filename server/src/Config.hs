@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {- | This module contains the runtime configuration data type as well as
 a function for loading
@@ -6,22 +7,27 @@ a function for loading
 module Config
     ( AppConfig(..)
     , loadConfig
+    , buildConnectionString
     )
 where
 
 import           Control.Exception.Safe         ( try )
 import           Data.Aeson                     ( (.:)
+                                                , (.:?)
                                                 , FromJSON(parseJSON)
                                                 , withObject
                                                 )
+import qualified Data.ByteString.Char8         as BC
 import           Data.Streaming.Network         ( HostPreference )
 import           Data.String                    ( fromString )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
 import           Data.UUID                      ( UUID )
 import           Data.Yaml                      ( prettyPrintParseException )
 import           Data.Yaml.Config               ( loadYamlSettings
                                                 , useEnv
                                                 )
+import           Database.Persist.Postgresql    ( ConnectionString )
 import           Paths_qbfc                     ( getDataFileName )
 import           System.Exit                    ( exitFailure )
 
@@ -37,6 +43,19 @@ data AppConfig =
         -- @qbfc-server.local@.
         , appPort :: Int
         -- ^ The port the server listens on.
+
+        , appDBHost :: Text
+        -- ^ The name of the database host to connect to.
+        , appDBPort :: Maybe Int
+        -- ^ The port that the database is running on.
+        , appDBUser :: Text
+        -- ^ The database user to login as.
+        , appDBPass :: Text
+        -- ^ The database user's password.
+        , appDBName :: Text
+        -- ^ The name of the database to use.
+        , appDBConnectionCount :: Int
+        -- ^ The number of database connections to keep open.
 
         , appEnableTLS :: Bool
         -- ^ Enable HTTPS connections via TLS. WebConnector requires HTTPS
@@ -69,6 +88,17 @@ instance FromJSON AppConfig where
         host <- fmap fromString $ o .: "host"
         hostname <- o .: "hostname"
         port <- o .: "port"
+        (dbHost, dbPort, dbUser, dbPass, dbName, dbConnectionCount) <- o .: "db"
+            >>= withObject "db"
+                (\db ->
+                    (,,,,,)
+                        <$> db .: "host"
+                        <*> db .:? "port"
+                        <*> db .: "username"
+                        <*> db .: "password"
+                        <*> db .: "name"
+                        <*> db .: "connection-count"
+                )
         (accUsername, accPassword, accSyncInterval, accSyncID) <- o .: "account-sync"
             >>= withObject "account-sync"
                     (\acc ->
@@ -92,6 +122,13 @@ instance FromJSON AppConfig where
             { appHost = host
             , appHostname = hostname
             , appPort = port
+
+            , appDBHost = dbHost
+            , appDBPort = dbPort
+            , appDBUser = dbUser
+            , appDBPass = dbPass
+            , appDBName = dbName
+            , appDBConnectionCount = dbConnectionCount
 
             , appEnableTLS = useTLS
             , appAllowInsecure = allowInsecure
@@ -124,3 +161,18 @@ loadConfig filePaths = do
             putStrLn $ prettyPrintParseException parseException
             exitFailure
         Right config -> return config
+
+-- | Build a PostgreSQL Connection String From the DB Values in an
+-- AppConfig.
+buildConnectionString :: AppConfig -> ConnectionString
+buildConnectionString AppConfig { appDBHost, appDBPort, appDBUser, appDBPass, appDBName }
+    = BC.pack $ unwords
+        [ "host=" <> handleEmpty appDBHost
+        , "port=" <> maybe "''" show appDBPort
+        , "user=" <> handleEmpty appDBUser
+        , "password=" <> handleEmpty appDBPass
+        , "dbname=" <> handleEmpty appDBName
+        ]
+  where
+    handleEmpty :: Text -> String
+    handleEmpty t = if T.null t then "''" else T.unpack t

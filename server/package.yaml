@@ -33,14 +33,19 @@ library:
     source-dirs: src
     dependencies:
         - aeson
+        - resource-pool
         - exceptions
         - http-media
         - mtl
+        - persistent
+        - persistent-postgresql
+        - persistent-template
         - random
         - safe-exceptions
         - servant
         - servant-server
         - streaming-commons
+        - unliftio-core
         - wai
         - xml-conduit
         - xml-types
@@ -58,6 +63,8 @@ executables:
             - -with-rtsopts=-N
         dependencies:
             - qbfc
+            - monad-logger
+            - persistent-postgresql
             - wai
             - wai-extra
             - warp

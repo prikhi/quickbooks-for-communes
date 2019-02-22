@@ -1,10 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import           App                            ( app )
+import           App                            ( AppEnv(..)
+                                                , app
+                                                )
 import           Config                         ( AppConfig(..)
                                                 , loadConfig
+                                                , buildConnectionString
                                                 )
+import           Control.Monad.Logger           ( runStdoutLoggingT )
+import           Database.Persist.Postgresql    ( createPostgresqlPool
+                                                , runSqlPool
+                                                , runMigration
+                                                )
+import           DB.Schema                      ( migrateAll )
 import           Network.Wai.Handler.Warp       ( setPort
                                                 , setHost
                                                 , defaultSettings
@@ -20,8 +29,13 @@ import           Network.Wai.Middleware.RequestLogger
 
 main :: IO ()
 main = do
-    cfg <- loadConfig ["settings.yaml"]
-    let runner = if appEnableTLS cfg then runTLS tlsSettings else runSettings
+    cfg    <- loadConfig ["settings.yaml"]
+    dbPool <- runStdoutLoggingT $ createPostgresqlPool
+        (buildConnectionString cfg)
+        (appDBConnectionCount cfg)
+    flip runSqlPool dbPool $ runMigration migrateAll
+    let env = AppEnv cfg dbPool
+        runner = if appEnableTLS cfg then runTLS tlsSettings else runSettings
         tlsSettings = (tlsSettingsChain (appTLSCertFile cfg)
                                         (appTLSChainFiles cfg)
                                         (appTLSKeyFile cfg)
@@ -34,4 +48,4 @@ main = do
             }
         settings =
             setHost (appHost cfg) $ setPort (appPort cfg) defaultSettings
-    runner settings $ logStdoutDev $ app cfg
+    runner settings $ logStdoutDev $ app env

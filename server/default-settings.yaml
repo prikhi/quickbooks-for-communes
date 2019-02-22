@@ -10,6 +10,13 @@ host: "*"
 hostname: "localhost"
 port: 3000
 
+db:
+    host: ""
+    username: ""
+    password: ""
+    name: "qb-for-communes"
+    connection-count: 5
+
 tls:
     enable: true
     allow-insecure: false
