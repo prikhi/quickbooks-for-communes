@@ -19,13 +19,13 @@ This is still in the alpha stage, but under active development.
 Server
 ######
 
-We use `Stack`_ to build the server & manage it's dependencies:
+We use `Stack`_ to build the server & manage it's dependencies, with a
+``Makefile`` for running common commands :
 
 .. code:: bash
 
    cd server
-   stack build
-   stack exec qbfc-server
+   make run
 
 Configuration is done through YAML files. Some sensible defaults are loaded
 from the ``default-settings.yaml`` file, but this does not contain
@@ -100,6 +100,13 @@ tell your QuickBooks computer to trust it:
 
 Documentation
 #############
+
+You can build the server's package documentation & open it in your web
+browser::
+
+   cd server
+   make docs
+
 
 Some useful external references:
 
