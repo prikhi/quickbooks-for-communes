@@ -37,7 +37,7 @@ import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
 import           Database.Persist.Sql           ( SqlBackend
                                                 , runSqlPool
-                                                , insert
+                                                , insert_
                                                 , getBy
                                                 )
 import           DB.Schema                      ( Session(..)
@@ -182,7 +182,7 @@ accountQuery r = case r of
                     else (ValidUser, Initiated, Nothing)
         ticket <- runDB $ do
             ticket <- generateUniqueTicket
-            insert Session
+            insert_ Session
                 { sessionTicket = UUIDField ticket
                 , sessionType   = AccountSync
                 , sessionStatus = status
