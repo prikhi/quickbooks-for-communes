@@ -10,7 +10,9 @@ module Parser
     ( -- * Running Parsers
       Parser
     , runParser
-    , throwEither
+    , ParsingError
+    , parseError
+    , liftEither
      -- * Selecting Elements
     , matchName
     , find
@@ -24,13 +26,10 @@ module Parser
     )
 where
 
-import           Control.Monad.Catch.Pure       ( MonadThrow(..)
-                                                , SomeException
-                                                )
+import           Control.Monad.Catch.Pure       ( Exception )
 import           Control.Monad.Reader           ( ReaderT
                                                 , MonadReader
                                                 , runReaderT
-                                                , ask
                                                 , asks
                                                 , local
                                                 )
@@ -38,7 +37,6 @@ import           Control.Monad.Except           ( ExceptT
                                                 , MonadError
                                                 , runExceptT
                                                 , throwError
-                                                , liftEither
                                                 )
 import qualified Data.ByteString.Lazy.Char8    as LBS
 import           Data.Functor.Identity          ( Identity
@@ -46,7 +44,9 @@ import           Data.Functor.Identity          ( Identity
                                                 )
 import           Data.Maybe                     ( mapMaybe )
 import           Data.Text                      ( Text
+                                                , intercalate
                                                 , unpack
+                                                , pack
                                                 )
 import           Data.Text.Encoding             ( encodeUtf8 )
 import           Text.Read                      ( readEither )
@@ -60,25 +60,67 @@ import           Text.XML                       ( Node(..)
 
 -- RUNNING
 
--- | The Parser Monad is used for parsing XML elements into datatypes. It
--- tracks the current Element in a cursor-like fashion, where you can
--- descend into child Elements to parse nested XML. Running a Parser
--- returns the result or a String error.
+-- | The Parser Monad is used for parsing XML elements into datatypes.
+--
+-- It tracks the current Element in a cursor-like fashion, where you can
+-- descend into child Elements to parse nested XML, as well as the Names of
+-- elements that have been descended into already.
+--
+-- Running a Parser returns the result or a ParsingError.
+--
+-- TODO: Don't use a MonadReader or MonadError, just custom functions that
+-- maintain Context & properly construct errors?
 newtype Parser a
-    = Parser { fromParser :: ReaderT Element (ExceptT String Identity) a }
-    deriving (Functor, Applicative, Monad, MonadReader Element, MonadError String)
+    = Parser { fromParser :: ReaderT ParserContext (ExceptT ParsingError Identity) a }
+    deriving (Functor, Applicative, Monad, MonadReader ParserContext, MonadError ParsingError)
+
+-- | The context a Parser holds during parsing.
+data ParserContext
+    = ParserContext
+        { cursor :: Element
+        -- ^ The currently selected Element
+        , hierarchy :: [Name]
+        -- ^ The hierarchy of Element Name's we've descended into - in
+        -- reverse order.
+        }
+    deriving (Show)
+
+-- | An error that has occured during XML parsing.
+data ParsingError
+    = ParsingError
+        { errorMessage :: Text
+        , parentNodes :: [Name]
+        }
+
+instance Exception ParsingError
+
+-- | Show the parent node hierarchy as names separated by @ > @ signs
+-- followed by the error message enclosed in braces.
+instance Show ParsingError where
+    show err =
+        unpack $
+            intercalate " > " (map nameLocalName $ parentNodes err)
+            <> " { "
+            <> errorMessage err
+            <> " }"
 
 -- | Run a Parser on an Element, returning an error or the parsed value.
-runParser :: Element -> Parser a -> Either String a
+runParser :: Element -> Parser a -> Either ParsingError a
 runParser el parser =
-    runIdentity $ runExceptT $ runReaderT (fromParser parser) el
+    runIdentity $ runExceptT $ runReaderT (fromParser parser) $ ParserContext
+        el
+        [elementName el]
 
--- | Lift an Either to a MonadThrow instance by throwing Left values as
--- SomeException.
-throwEither :: MonadThrow m => Either String a -> m a
-throwEither = \case
-    Right x       -> return x
-    Left  errText -> throwM (error errText :: SomeException)
+-- | Signal a parsing error with the given message.
+parseError :: Text -> Parser a
+parseError msg = do
+    parents <- asks $ reverse . hierarchy
+    throwError $ ParsingError {errorMessage = msg, parentNodes = parents}
+
+-- | Lift an Either into a Parser by throwing a ParsingError if necessary.
+liftEither :: Either String a -> Parser a
+liftEither = either (parseError . pack) return
+
 
 
 -- SELECTING
@@ -89,11 +131,10 @@ throwEither = \case
 -- Throws an error if the name does not match.
 matchName :: Name -> Parser a -> Parser a
 matchName name parser = do
-    el <- ask
+    el <- asks cursor
     if elementName el == name
         then parser
-        else throwError $ "Expected Element with Name: " <> show
-            (nameLocalName name)
+        else parseError $ "Expected Element with Name: " <> nameLocalName name
 
 -- | Run the Parser on a nested element. The first matching name is
 -- descended into at each level. No backtracking or retrying is done if the
@@ -103,7 +144,7 @@ matchName name parser = do
 -- unreachable.
 at :: [Name] -> Parser a -> Parser a
 at n p = case n of
-    []            -> throwError "No name to descend into"
+    []            -> parseError "No name to descend into"
     [    name]    -> find name p
     name :   rest -> find name (at rest p)
 
@@ -112,8 +153,7 @@ at n p = case n of
 -- Throws an error if no matching children are found.
 find :: Name -> Parser a -> Parser a
 find name parser = getElementsByName name >>= \case
-    [] ->
-        throwError $ "Could Not Find Element: " <> unpack (nameLocalName name)
+    []     -> parseError $ "Could Not Find Element: " <> nameLocalName name
     el : _ -> descend parser el
 
 -- | Parse all children with matching names using the given 'Parser'.
@@ -122,11 +162,13 @@ findAll name parser = getElementsByName name >>= mapM (descend parser)
 
 -- | Descend into an Element & parse it.
 descend :: Parser a -> Element -> Parser a
-descend parser el = const el `local` parser
+descend parser el = local
+    (\ctx -> ctx { cursor = el, hierarchy = elementName el : hierarchy ctx })
+    parser
 
 -- | Return all children of the current element with the matching 'Name'.
 getElementsByName :: Name -> Parser [Element]
-getElementsByName name = asks $ mapMaybe getByName . elementNodes
+getElementsByName name = asks $ mapMaybe getByName . elementNodes . cursor
   where
     getByName = \case
         NodeElement e -> if elementName e == name then Just e else Nothing
@@ -145,18 +187,19 @@ parseBool :: Parser Bool
 parseBool = parseContent >>= \case
     "true"  -> return True
     "false" -> return False
-    s       -> throwError $ "Could not parse IQBBoolType, got: " <> unpack s
+    s       -> parseError $ "Could not parse IQBBoolType, got: " <> s
 
 -- | Parse the Element's content, throwing an error if any other child
 -- Nodes are present.
 parseContent :: Parser Text
 parseContent = do
-    el <- ask
+    el <- asks cursor
     case elementNodes el of
         [NodeContent t] -> return t
         _ ->
-            throwError $ "Expected NodeContent Singleton in Element: " <> unpack
-                (nameLocalName $ elementName el)
+            parseError
+                $  "Expected NodeContent Singleton in Element: "
+                <> nameLocalName (elementName el)
 
 -- | Get the Element's content, parse it into an XML 'Text.XML.Document',
 -- then run the given Parser on the 'documentRoot'.
