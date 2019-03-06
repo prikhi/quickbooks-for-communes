@@ -12,7 +12,7 @@ module Parser
     , runParser
     , ParserContext(..)
     , runParserContext
-    , ParsingError
+    , ParsingError(..)
     , parseError
     , liftEither
       -- * Querying Parsing Context
@@ -285,8 +285,8 @@ parseBool = parseContent >>= \case
 
 -- | Parse an @xsd:date@ from the Element contents.
 --
--- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned times, @YYYY-MM-DDZ@
--- for UTC time, & @YYYY-MM-DD@.
+-- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned dates, and
+-- @YYYY-MM-DDZ@ or @YYYY-MM-DD@ for UTC dates.
 parseDate :: Parser UTCTime
 parseDate = do
     text <- unpack <$> parseContent
