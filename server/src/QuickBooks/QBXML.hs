@@ -85,7 +85,7 @@ data HostData
         -- ^ The numeric Major Version of the QuickBooks Host.
         , minorVersion :: Integer
         -- ^ The numeric Minor Version of the QuickBooks Host.
-        , country :: Text
+        , countryVersion :: Text
         -- ^ The Country Code the edition of QuickBooks was designed for.
         -- TODO: Parse this into ISO Country Codes?
         , supportedQbxmlVersions :: [Text]
@@ -108,7 +108,7 @@ parseHostData = matchName "HostRet" $ do
     productName            <- find "ProductName" parseContent
     majorVersion           <- find "MajorVersion" parseRead
     minorVersion           <- find "MinorVersion" parseRead
-    country                <- find "Country" parseContent
+    countryVersion         <- find "Country" parseContent
     supportedQbxmlVersions <- findAll "SupportedQBXMLVersion" parseContent
     isAutomaticLogin       <- find "IsAutomaticLogin" parseBool
     fileMode               <- find "QBFileMode" parseRead
