@@ -10,15 +10,22 @@ module Parser
     ( -- * Running Parsers
       Parser
     , runParser
+    , ParserContext(..)
+    , runParserContext
     , ParsingError
     , parseError
     , liftEither
-     -- * Selecting Elements
+      -- * Querying Parsing Context
+    , getContext
+    , getElement
+    , getHierarchy
+      -- * Selecting Elements
     , matchName
+    , descend
     , find
     , findAll
     , at
-     -- * Reading Content
+      -- * Reading Content
     , parseRead
     , parseBool
     , parseDate
@@ -30,18 +37,18 @@ where
 import           Control.Applicative            ( (<|>) )
 import           Control.Monad.Catch.Pure       ( Exception )
 import           Control.Monad.Reader           ( ReaderT
-                                                , MonadReader
                                                 , runReaderT
+                                                , ask
                                                 , asks
                                                 , local
+                                                , lift
                                                 )
-import           Control.Monad.Except           ( ExceptT
-                                                , MonadError
+import           Control.Monad.Except           ( ExceptT(..)
                                                 , runExceptT
                                                 , throwError
                                                 )
 import qualified Data.ByteString.Lazy.Char8    as LBS
-import           Data.Functor.Identity          ( Identity
+import           Data.Functor.Identity          ( Identity(..)
                                                 , runIdentity
                                                 )
 import           Data.Maybe                     ( mapMaybe )
@@ -73,12 +80,9 @@ import           Text.XML                       ( Node(..)
 -- elements that have been descended into already.
 --
 -- Running a Parser returns the result or a ParsingError.
---
--- TODO: Don't use a MonadReader or MonadError, just custom functions that
--- maintain Context & properly construct errors?
 newtype Parser a
     = Parser { fromParser :: ReaderT ParserContext (ExceptT ParsingError Identity) a }
-    deriving (Functor, Applicative, Monad, MonadReader ParserContext, MonadError ParsingError)
+    deriving (Functor, Applicative, Monad)
 
 -- | The context a Parser holds during parsing.
 data ParserContext
@@ -112,16 +116,21 @@ instance Show ParsingError where
 
 -- | Run a Parser on an Element, returning an error or the parsed value.
 runParser :: Element -> Parser a -> Either ParsingError a
-runParser el parser =
-    runIdentity $ runExceptT $ runReaderT (fromParser parser) $ ParserContext
-        el
-        [elementName el]
+runParser el = runParserContext $ ParserContext el [elementName el]
+
+-- | Run a Parser with the given ParserContext.
+runParserContext :: ParserContext -> Parser a -> Either ParsingError a
+runParserContext ctx parser =
+    runIdentity $ runExceptT $ runReaderT (fromParser parser) ctx
 
 -- | Signal a parsing error with the given message.
 parseError :: Text -> Parser a
 parseError msg = do
-    parents <- asks $ reverse . hierarchy
-    throwError $ ParsingError {errorMessage = msg, parentNodes = parents}
+    parents <- getHierarchy
+    Parser $ lift $ ExceptT $ Identity $ Left $ ParsingError
+        { errorMessage = msg
+        , parentNodes  = parents
+        }
 
 -- | Lift an Either into a Parser by throwing a ParsingError if necessary.
 liftEither :: Either String a -> Parser a
@@ -129,7 +138,25 @@ liftEither = either (parseError . pack) return
 
 
 
+-- QUERYING
+
+-- | Get the Element at the cursor.
+getElement :: Parser Element
+getElement = Parser $ asks cursor
+
+-- | Get the current hierarchy of Element Names, ordered from the top-most
+-- to the current Element.
+getHierarchy :: Parser [Name]
+getHierarchy = Parser $ asks $ reverse . hierarchy
+
+-- | Get the entire Parsing Context.
+getContext :: Parser ParserContext
+getContext = Parser ask
+
+
+
 -- SELECTING
+
 
 -- | Ensure the 'Element' 'Name' matches the given name, then apply the
 -- parser.
@@ -137,10 +164,18 @@ liftEither = either (parseError . pack) return
 -- Throws an error if the name does not match.
 matchName :: Name -> Parser a -> Parser a
 matchName name parser = do
-    el <- asks cursor
+    el <- getElement
     if elementName el == name
         then parser
         else parseError $ "Expected Element with Name: " <> nameLocalName name
+
+-- | Descend into an Element & parse it. The 'Name' of the element we
+-- descend into is prepended to the 'hierarchy' of the given Parser's
+-- 'ParsingContext'.
+descend :: Parser a -> Element -> Parser a
+descend parser el = Parser $ local
+    (\ctx -> ctx { cursor = el, hierarchy = elementName el : hierarchy ctx })
+    (fromParser parser)
 
 -- | Run the Parser on a nested element. The first matching name is
 -- descended into at each level. No backtracking or retrying is done if the
@@ -163,18 +198,15 @@ find name parser = getElementsByName name >>= \case
     el : _ -> descend parser el
 
 -- | Parse all children with matching names using the given 'Parser'.
+--
+-- Throws an error if the parser fails on any of the children.
 findAll :: Name -> Parser a -> Parser [a]
 findAll name parser = getElementsByName name >>= mapM (descend parser)
 
--- | Descend into an Element & parse it.
-descend :: Parser a -> Element -> Parser a
-descend parser el = local
-    (\ctx -> ctx { cursor = el, hierarchy = elementName el : hierarchy ctx })
-    parser
 
 -- | Return all children of the current element with the matching 'Name'.
 getElementsByName :: Name -> Parser [Element]
-getElementsByName name = asks $ mapMaybe getByName . elementNodes . cursor
+getElementsByName name = mapMaybe getByName . elementNodes <$> getElement
   where
     getByName = \case
         NodeElement e -> if elementName e == name then Just e else Nothing
@@ -216,7 +248,7 @@ parseDate = do
 -- Nodes are present.
 parseContent :: Parser Text
 parseContent = do
-    el <- asks cursor
+    el <- getElement
     case elementNodes el of
         [NodeContent t] -> return t
         _ ->
