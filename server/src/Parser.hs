@@ -19,6 +19,10 @@ module Parser
     , getContext
     , getElement
     , getHierarchy
+      -- * Conditional Parsing
+    , tryParser
+    , oneOf
+    , optional
       -- * Selecting Elements
     , matchName
     , descend
@@ -152,6 +156,55 @@ getHierarchy = Parser $ asks $ reverse . hierarchy
 -- | Get the entire Parsing Context.
 getContext :: Parser ParserContext
 getContext = Parser ask
+
+
+
+-- CONDITIONALS
+
+-- | Attempt parsing the current Element, returning the ParsingError
+-- instead of aborting.
+tryParser :: Parser a -> Parser (Either ParsingError a)
+tryParser parser = do
+    ctx <- getContext
+    return $ runParserContext ctx parser
+
+-- | Attempt parsing with multiple Parsers, returning the first valid
+-- result. If all parsers fail, rethrow the 'ParsingError' with the longest
+-- 'parentNodes' list.
+oneOf :: [Parser a] -> Parser a
+oneOf ps = untilSucceeds (ps, []) >>= \case
+    Right val  -> return val
+    Left  errs -> case findLongest errs of
+        Nothing  -> parseError "No parsers to attempt"
+        Just err -> Parser (throwError err)
+  where
+    -- Attempt parsers until one succeeds or all have been tried,
+    -- collecting all the errors in a list.
+    untilSucceeds
+        :: ([Parser a], [ParsingError]) -> Parser (Either [ParsingError] a)
+    untilSucceeds (ps_, es) = case ps_ of
+        []       -> return $ Left $ reverse es
+        p : rest -> tryParser p >>= \case
+            Right val -> return $ Right val
+            Left  err -> untilSucceeds (rest, err : es)
+    -- Return the error with the longest 'parentNodes' list.
+    findLongest :: [ParsingError] -> Maybe ParsingError
+    findLongest es = case es of
+        []  -> Nothing
+        [e] -> Just e
+        this : next : rest ->
+            if length (parentNodes this) > length (parentNodes next)
+                then findLongest $ this : rest
+                else findLongest $ next : rest
+
+-- | Try a parser, returning a Maybe to handle failure instead of throwing
+-- a ParsingError.
+optional :: Parser a -> Parser (Maybe a)
+optional parser = do
+    ctx <- getContext
+    case runParserContext ctx parser of
+        Left  _   -> return Nothing
+        Right val -> return $ Just val
 
 
 
