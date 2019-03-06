@@ -181,13 +181,16 @@ getElementsByName name = asks $ mapMaybe getByName . elementNodes . cursor
 parseRead :: Read a => Parser a
 parseRead = parseContent >>= liftEither . readEither . unpack
 
--- | Expect a single 'NodeContent' child & parse it into a Bool, expecting
--- the text values for the QuickBooks IQBBoolType.
+-- | Parse an @xsd:bool@ from the Element contents.
+--
+-- Valid values are @1@, @0@, @true@, and @false@.
 parseBool :: Parser Bool
 parseBool = parseContent >>= \case
     "true"  -> return True
+    "1"     -> return True
     "false" -> return False
-    s       -> parseError $ "Could not parse IQBBoolType, got: " <> s
+    "0"     -> return False
+    s       -> parseError $ "Expected an xsd:bool, got: " <> s
 
 -- | Parse the Element's content, throwing an error if any other child
 -- Nodes are present.
