@@ -21,11 +21,13 @@ module Parser
      -- * Reading Content
     , parseRead
     , parseBool
+    , parseDate
     , parseContent
     , parseContentWith
     )
 where
 
+import           Control.Applicative            ( (<|>) )
 import           Control.Monad.Catch.Pure       ( Exception )
 import           Control.Monad.Reader           ( ReaderT
                                                 , MonadReader
@@ -49,6 +51,10 @@ import           Data.Text                      ( Text
                                                 , pack
                                                 )
 import           Data.Text.Encoding             ( encodeUtf8 )
+import           Data.Time                      ( UTCTime )
+import           Data.Time.Format               ( parseTimeM
+                                                , defaultTimeLocale
+                                                )
 import           Text.Read                      ( readEither )
 import           Text.XML                       ( Node(..)
                                                 , Element(..)
@@ -191,6 +197,20 @@ parseBool = parseContent >>= \case
     "false" -> return False
     "0"     -> return False
     s       -> parseError $ "Expected an xsd:bool, got: " <> s
+
+-- | Parse an @xsd:date@ from the Element contents.
+--
+-- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned times, @YYYY-MM-DDZ@
+-- for UTC time, & @YYYY-MM-DD@.
+parseDate :: Parser UTCTime
+parseDate = do
+    text <- unpack <$> parseContent
+    let parsed =
+            readDate "%F%eZ" text <|> readDate "%FZ" text <|> readDate "%F" text
+    case parsed of
+        Just t  -> return t
+        Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
+    where readDate = parseTimeM True defaultTimeLocale
 
 -- | Parse the Element's content, throwing an error if any other child
 -- Nodes are present.
