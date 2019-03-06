@@ -18,8 +18,6 @@ where
 import           Data.ByteString                ( ByteString )
 import           Data.Text                      ( Text )
 import           Parser                         ( Parser
-                                                , throwEither
-                                                , runParser
                                                 , matchName
                                                 , find
                                                 , findAll
@@ -38,7 +36,6 @@ import           Text.XML.Generator             ( Xml
                                                 , xelemEmpty
                                                 , xattr
                                                 )
-import           XML                            ( FromXML(..) )
 
 
 -- Requests
@@ -96,11 +93,6 @@ data HostData
         , fileMode :: QBFileMode
         -- ^ Whether QuickBooks is open in 'SingleUser' or 'MultiUser' mode.
         } deriving (Show, Read)
-
--- | Parse HostData from an 'Element' containing a @HostQueryRs@ child.
-instance FromXML HostData where
-    fromXML el =
-        throwEither $ runParser el $ find "HostQueryRs" $ find "HostRet" parseHostData
 
 -- | Parse a 'HostData' value from a @HostRet@ 'Element'.
 parseHostData :: Parser HostData
