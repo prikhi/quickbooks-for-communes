@@ -59,7 +59,7 @@ import           Text.Read                      ( readEither )
 import           Text.XML                       ( Node(..)
                                                 , Element(..)
                                                 , Name(..)
-                                                , parseLBS_
+                                                , parseLBS
                                                 , def
                                                 , documentRoot
                                                 )
@@ -226,8 +226,17 @@ parseContent = do
 
 -- | Get the Element's content, parse it into an XML 'Text.XML.Document',
 -- then run the given Parser on the 'documentRoot'.
+--
+-- Useful when you have a complete XML document nested inside an XML
+-- Element.
+--
+-- Throws an error when the text content is not a valid XML document.
 parseContentWith :: Parser a -> Parser a
 parseContentWith p = do
     text <- parseContent
-    let xmlContent = parseLBS_ def $ LBS.fromStrict $ encodeUtf8 text
-    descend p $ documentRoot xmlContent
+    case parseLBS def $ LBS.fromStrict $ encodeUtf8 text of
+        Left err ->
+            parseError
+                $  "Expected NodeContent Containing Valid XML Document, got: "
+                <> pack (show err)
+        Right xmlDoc -> descend p $ documentRoot xmlDoc
