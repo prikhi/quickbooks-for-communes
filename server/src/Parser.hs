@@ -32,6 +32,8 @@ module Parser
       -- * Reading Content
     , parseRead
     , parseBool
+    , parseInteger
+    , parseDecimal
     , parseDate
     , parseContent
     , parseContentWith
@@ -55,7 +57,9 @@ import qualified Data.ByteString.Lazy.Char8    as LBS
 import           Data.Functor.Identity          ( Identity(..)
                                                 , runIdentity
                                                 )
-import           Data.Maybe                     ( mapMaybe )
+import           Data.Maybe                     ( mapMaybe
+                                                , listToMaybe
+                                                )
 import           Data.Text                      ( Text
                                                 , intercalate
                                                 , unpack
@@ -65,6 +69,9 @@ import           Data.Text.Encoding             ( encodeUtf8 )
 import           Data.Time                      ( UTCTime )
 import           Data.Time.Format               ( parseTimeM
                                                 , defaultTimeLocale
+                                                )
+import           Numeric                        ( readFloat
+                                                , readSigned
                                                 )
 import           Text.Read                      ( readEither )
 import           Text.XML                       ( Node(..)
@@ -224,7 +231,7 @@ matchName name parser = do
 
 -- | Descend into an Element & parse it. The 'Name' of the element we
 -- descend into is prepended to the 'hierarchy' of the given Parser's
--- 'ParsingContext'.
+-- 'ParserContext'.
 descend :: Parser a -> Element -> Parser a
 descend parser el = Parser $ local
     (\ctx -> ctx { cursor = el, hierarchy = elementName el : hierarchy ctx })
@@ -282,6 +289,20 @@ parseBool = parseContent >>= \case
     "false" -> return False
     "0"     -> return False
     s       -> parseError $ "Expected an xsd:bool, got: " <> s
+
+-- | Pare an @xsd:integer@ from the Element contents.
+parseInteger :: Parser Integer
+parseInteger = unpack <$> parseContent >>= liftEither . readEither . \case
+    '+' : rest -> rest
+    str        -> str
+
+-- | Parse an @xsd:decimal@ from the Element contents.
+parseDecimal :: Parser Rational
+parseDecimal = do
+    str <- dropWhile (== '+') . unpack <$> parseContent
+    case listToMaybe (readSigned readFloat str) of
+        Nothing -> parseError $ "Expected an xsd:decimal, got: " <> pack str
+        Just (val, _) -> return val
 
 -- | Parse an @xsd:date@ from the Element contents.
 --
