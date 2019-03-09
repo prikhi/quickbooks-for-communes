@@ -23,10 +23,7 @@ module QuickBooks.WebConnector
     )
 where
 
-import           Control.Applicative            ( (<|>) )
-import           Control.Monad.Catch.Pure       ( MonadThrow(..)
-                                                , SomeException
-                                                )
+import           Control.Monad.Catch.Pure       ( MonadThrow(..) )
 import           Data.Maybe                     ( catMaybes )
 import           Data.Text                      ( Text
                                                 , pack
@@ -34,6 +31,23 @@ import           Data.Text                      ( Text
                                                 )
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
+import           Parser                         ( Parser
+                                                , runParser
+                                                , parseError
+                                                , matchName
+                                                , oneOf
+                                                , find
+                                                , at
+                                                , parseContent
+                                                , parseContentWith
+                                                )
+import           QuickBooks.QBXML               ( HostData
+                                                , parseHostData
+                                                , CompanyData
+                                                , parseCompanyData
+                                                , PreferencesData
+                                                , parsePreferencesData
+                                                )
 import           Text.XML.Generator             ( Xml
                                                 , Elem
                                                 , Namespace
@@ -44,9 +58,8 @@ import           Text.XML.Generator             ( Xml
                                                 , xtext
                                                 , namespace
                                                 )
-import           Text.XML                       ( Node(..)
-                                                , Element(..)
-                                                , Name
+import           Text.XML                       ( Element(..)
+                                                , Name(..)
                                                 )
 import           XML                            ( FromXML(..)
                                                 , ToXML(..)
@@ -180,6 +193,7 @@ generateConnectorFile QWCConfig {..} userName =
     showUUID uuid = "{" <> UUID.toText uuid <> "}"
 
 
+
 -- Callbacks
 
 data Callback
@@ -189,61 +203,49 @@ data Callback
     deriving (Show)
 
 instance FromXML Callback where
-    fromXML e = parseServerVersion e
-            <|> parseClientVersion e
-            <|> parseAuthenticate e
-            <|> parsingError "Unsupported Callback"
-
-parseServerVersion :: MonadThrow m => Element -> m Callback
-parseServerVersion el =
-    if elementName el == "{http://developer.intuit.com/}serverVersion"
-        then return ServerVersion
-        else parsingError "ServerVersion parse failure"
-
-parseClientVersion :: MonadThrow m => Element -> m Callback
-parseClientVersion el =
-    if elementName el == "{http://developer.intuit.com/}clientVersion"
-        then case elementNodes el of
-            [NodeElement strVersion] ->
-                ClientVersion
-                    <$> parseTextElement
-                            "{http://developer.intuit.com/}strVersion"
-                            strVersion
-            e -> parsingError $ "Invalid clientVersion Body" ++ show e
-        else parsingError "ClientVersion parse failure"
-
-parseAuthenticate :: MonadThrow m => Element -> m Callback
-parseAuthenticate el =
-    if elementName el == "{http://developer.intuit.com/}authenticate"
-        then case elementNodes el of
-            [NodeElement userEl, NodeElement passEl] -> do
-                user <-
-                    Username
-                        <$> parseTextElement
-                                "{http://developer.intuit.com/}strUserName"
-                                userEl
-                pass <-
-                    Password
-                        <$> parseTextElement
-                                "{http://developer.intuit.com/}strPassword"
-                                passEl
-                return $ Authenticate user pass
-            _ -> parsingError "Invalid authenticate Content"
-        else parsingError "Invalid authenticate Body"
-
--- | Parse a specific XML element containing only Text content.
-parseTextElement :: MonadThrow m => Name -> Element -> m Text
-parseTextElement name tEl = if elementName tEl == name
-    then case elementNodes tEl of
-        [NodeContent v] -> return v
-        _ -> parsingError $ "Invalid Text Element Content for " <> show name
-    else parsingError $ "Invalid Text Element Body for " <> show name
-
--- | Throw an XML parsing error.
-parsingError :: MonadThrow m => String -> m a
-parsingError s = throwM (error s :: SomeException)
+    fromXML e = fromParser e $ oneOf
+        [ parseServerVersion
+        , parseClientVersion
+        , parseAuthenticate
+        , parseError "Unsupported WebConnector Callback"
+        ]
 
 
+parseServerVersion :: Parser Callback
+parseServerVersion = matchName (qbName "serverVersion") $ return ServerVersion
+
+parseClientVersion :: Parser Callback
+parseClientVersion =
+    matchName (qbName "clientVersion")
+        $   ClientVersion
+        <$> find (qbName "strVersion") parseContent
+
+parseAuthenticate :: Parser Callback
+parseAuthenticate = matchName (qbName "authenticate") $ do
+    user <- Username <$> find (qbName "strUserName") parseContent
+    pass <- Password <$> find (qbName "strPassword") parseContent
+    return $ Authenticate user pass
+
+-- | Utility function for Converting a Parser to a FromXML value.
+--
+-- Throws 'ParsingError'.
+fromParser :: MonadThrow m => Element -> Parser a -> m a
+fromParser el p = either throwM return $ runParser el p
+
+
+-- | Build an 'Element' name in the Intuit Developer 'Namespace'.
+qbName :: Text -> Name
+qbName elName = Name
+    { nameLocalName = elName
+    , nameNamespace = Just "http://developer.intuit.com/"
+    , namePrefix    = Nothing
+    }
+
+
+-- | Valid responses for callbacks.
+--
+-- TODO: should we break these off into their own type so we can ensure the
+-- ServerVersion callback returns a ServerVersionResp?
 data CallbackResponse
     = ServerVersionResp Text
     -- ^ Respond with the Server's version number.

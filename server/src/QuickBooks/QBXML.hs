@@ -124,6 +124,9 @@ qbxmlDoc content =
 -- Responses
 
 -- | Possible qbXML Responses we can parse.
+--
+-- TODO: Wrapper type w/ request id, status code/severity/message, & return
+-- count?
 data Response
     = HostResponse HostData
     | CompanyResponse CompanyData
@@ -775,8 +778,8 @@ parseItemsAndInventoryPreferences = do
 
 -- BASICS
 
--- | A percedntage is a decimal number representing percents like interest
--- rates.
+-- | A percentage is a decimal number representing percents like interest
+-- rates. E.g., 10.5% == Percentage 10.5
 newtype Percentage
     = Percentage { fromPercentage :: Rational } deriving (Show, Read, Eq, Num)
 
