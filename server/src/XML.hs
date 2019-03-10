@@ -10,10 +10,6 @@ using `xmlgen`.
 -}
 module XML where
 
-import           Control.Applicative            ( Alternative )
-import           Control.Monad.Catch.Pure       ( MonadThrow
-                                                , runCatch
-                                                )
 import           Data.Bifunctor                 ( first )
 import           Data.Typeable                  ( Typeable )
 import qualified Network.HTTP.Media            as M
@@ -27,10 +23,13 @@ import           Text.XML.Generator             ( Xml
                                                 , doc
                                                 , defaultDocInfo
                                                 )
-import           Text.XML                       ( Element
-                                                , documentRoot
+import           Text.XML                       ( documentRoot
                                                 , parseLBS_
                                                 , def
+                                                )
+
+import           Parser                         ( Parser
+                                                , runParser
                                                 )
 
 -- | Render a type into XML using the `xmlgen` package.
@@ -38,8 +37,9 @@ class ToXML a where
     toXML :: a -> Xml Elem
 
 -- | Parse XML into a type using the `xml-conduits` package.
+-- TODO: Move into Parser module?
 class FromXML a where
-    fromXML :: (Alternative m, MonadThrow m) => Element -> m a
+    fromXML :: Parser a
 
 -- | Create XML requests with xmlgen & parse responses with xml-conduits.
 data XML deriving Typeable
@@ -54,5 +54,5 @@ instance (ToXML a) => MimeRender XML a where
 
 -- | Types implementing FromXML can be passed to Servant XML routes.
 instance (FromXML a) => MimeUnrender XML a where
-    mimeUnrender _ bs = first show . runCatch $
-        fromXML $ documentRoot $ parseLBS_ def bs
+    mimeUnrender _ bs = first show $
+        runParser (documentRoot $ parseLBS_ def bs) fromXML

@@ -23,7 +23,6 @@ module QuickBooks.WebConnector
     )
 where
 
-import           Control.Monad.Catch.Pure       ( MonadThrow(..) )
 import           Data.Maybe                     ( catMaybes )
 import           Data.Text                      ( Text
                                                 , pack
@@ -32,7 +31,6 @@ import           Data.Text                      ( Text
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
 import           Parser                         ( Parser
-                                                , runParser
                                                 , parseError
                                                 , matchName
                                                 , oneOf
@@ -40,6 +38,7 @@ import           Parser                         ( Parser
                                                 , at
                                                 , parseContent
                                                 , parseContentWith
+                                                , withNamespace
                                                 )
 import           QuickBooks.QBXML               ( HostData
                                                 , parseHostData
@@ -58,9 +57,7 @@ import           Text.XML.Generator             ( Xml
                                                 , xtext
                                                 , namespace
                                                 )
-import           Text.XML                       ( Element(..)
-                                                , Name(..)
-                                                )
+import           Text.XML                       ( Name )
 import           XML                            ( FromXML(..)
                                                 , ToXML(..)
                                                 )
@@ -203,7 +200,7 @@ data Callback
     deriving (Show)
 
 instance FromXML Callback where
-    fromXML e = fromParser e $ oneOf
+    fromXML = oneOf
         [ parseServerVersion
         , parseClientVersion
         , parseAuthenticate
@@ -226,20 +223,10 @@ parseAuthenticate = matchName (qbName "authenticate") $ do
     pass <- Password <$> find (qbName "strPassword") parseContent
     return $ Authenticate user pass
 
--- | Utility function for Converting a Parser to a FromXML value.
---
--- Throws 'ParsingError'.
-fromParser :: MonadThrow m => Element -> Parser a -> m a
-fromParser el p = either throwM return $ runParser el p
-
 
 -- | Build an 'Element' name in the Intuit Developer 'Namespace'.
 qbName :: Text -> Name
-qbName elName = Name
-    { nameLocalName = elName
-    , nameNamespace = Just "http://developer.intuit.com/"
-    , namePrefix    = Nothing
-    }
+qbName = withNamespace "http://developer.intuit.com/"
 
 
 -- | Valid responses for callbacks.

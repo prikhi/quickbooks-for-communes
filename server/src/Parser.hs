@@ -37,6 +37,8 @@ module Parser
     , parseDate
     , parseContent
     , parseContentWith
+      -- * Utilities
+    , withNamespace
     )
 where
 
@@ -346,3 +348,19 @@ parseContentWith p = do
                 $  "Expected NodeContent Containing Valid XML Document, got: "
                 <> pack (show err)
         Right xmlDoc -> descend p $ documentRoot xmlDoc
+
+
+-- UTILITIES
+
+
+-- | Convenience function for building a @Text -> Name@ function with
+-- a predefined namespace.
+--
+-- > soapName :: Text -> Name
+-- > soapName = withNamespace "http://schemas.xmlsoap.org/soap/envelope/"
+withNamespace :: Text -> (Text -> Name)
+withNamespace namespace name = Name
+    { nameLocalName = name
+    , nameNamespace = Just namespace
+    , namePrefix    = Nothing
+    }
