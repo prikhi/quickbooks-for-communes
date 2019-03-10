@@ -41,11 +41,8 @@ import           Parser                         ( Parser
                                                 , withNamespace
                                                 )
 import           QuickBooks.QBXML               ( HostData
-                                                , parseHostData
                                                 , CompanyData
-                                                , parseCompanyData
                                                 , PreferencesData
-                                                , parsePreferencesData
                                                 )
 import           Text.XML.Generator             ( Xml
                                                 , Elem
