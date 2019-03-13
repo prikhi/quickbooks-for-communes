@@ -3,7 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {- | The Parser module contains a monadic, depth tracking XML parser that
 provides a nicer interface around the @xml-conduit@ package as well as
-parsing functions for reading QuickBooks-specific types.
+parsing functions for reading xsd-specific types from an Element's
+contents.
 
 -}
 module Parser
@@ -35,6 +36,7 @@ module Parser
     , parseInteger
     , parseDecimal
     , parseDate
+    , parseDatetime
     , parseContent
     , parseContentWith
       -- * Utilities
@@ -318,7 +320,24 @@ parseDate = do
     case parsed of
         Just t  -> return t
         Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
-    where readDate = parseTimeM True defaultTimeLocale
+
+-- | Parse an @xsd:dateTime@ from the Element's contents.
+--
+-- Supported formats are @YYYY-MM-DDTHH:MM:SS±HH:MM@ for zoned date times,
+-- and @YYYY-MM-DDTHH:MM:SSZ@ or @YYYY-MM-DDTHH:MM:SS@ for UTC date times.
+parseDatetime :: Parser UTCTime
+parseDatetime = do
+    text <- unpack <$> parseContent
+    let parsed =
+            readDate "%FT%T%eZ" text
+                <|> readDate "%FT%TZ" text
+                <|> readDate "%FT%T"  text
+    case parsed of
+        Just t  -> return t
+        Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
+
+readDate :: String -> String -> Maybe UTCTime
+readDate = parseTimeM True defaultTimeLocale
 
 -- | Parse the Element's content, throwing an error if any other child
 -- Nodes are present.
