@@ -319,7 +319,7 @@ parseDate :: Parser Day
 parseDate = do
     text <- unpack <$> parseContent
     let parsed =
-            readDate "%F%eZ" text <|> readDate "%FZ" text <|> readDate "%F" text
+            readDate "%F%z" text <|> readDate "%FZ" text <|> readDate "%F" text
     case parsed of
         Just t  -> return t
         Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
@@ -332,7 +332,7 @@ parseDatetime :: Parser UTCTime
 parseDatetime = do
     text <- unpack <$> parseContent
     let parsed =
-            readDate "%FT%T%eZ" text
+            readDate "%FT%T%z" text
                 <|> readDate "%FT%TZ" text
                 <|> readDate "%FT%T"  text
     case parsed of
