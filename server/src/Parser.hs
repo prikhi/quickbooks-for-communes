@@ -70,8 +70,11 @@ import           Data.Text                      ( Text
                                                 , pack
                                                 )
 import           Data.Text.Encoding             ( encodeUtf8 )
-import           Data.Time                      ( UTCTime )
-import           Data.Time.Format               ( parseTimeM
+import           Data.Time                      ( UTCTime
+                                                , Day
+                                                )
+import           Data.Time.Format               ( ParseTime
+                                                , parseTimeM
                                                 , defaultTimeLocale
                                                 )
 import           Numeric                        ( readFloat
@@ -312,7 +315,7 @@ parseDecimal = do
 --
 -- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned dates, and
 -- @YYYY-MM-DDZ@ or @YYYY-MM-DD@ for UTC dates.
-parseDate :: Parser UTCTime
+parseDate :: Parser Day
 parseDate = do
     text <- unpack <$> parseContent
     let parsed =
@@ -333,10 +336,11 @@ parseDatetime = do
                 <|> readDate "%FT%TZ" text
                 <|> readDate "%FT%T"  text
     case parsed of
-        Just t  -> return t
-        Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
+        Just t -> return t
+        Nothing ->
+            parseError $ "Expected an xsd:datetime type, got: " <> pack text
 
-readDate :: String -> String -> Maybe UTCTime
+readDate :: ParseTime a => String -> String -> Maybe a
 readDate = parseTimeM True defaultTimeLocale
 
 -- | Parse the Element's content, throwing an error if any other child

@@ -60,7 +60,9 @@ where
 
 import           Data.ByteString                ( ByteString )
 import           Data.Text                      ( Text )
-import           Data.Time                      ( UTCTime )
+import           Data.Time                      ( Day
+                                                , UTCTime
+                                                )
 import           Parser                         ( parseError
                                                 , matchName
                                                 , find
@@ -361,7 +363,7 @@ data AccountantCopy
     = AccountantCopy
         { accountantCopyExists :: Bool
         -- ^ Has a copy been made?
-        , dividingDate :: Maybe UTCTime
+        , dividingDate :: Maybe Day
         -- ^ The fiscal period the accountant is working on. You cannot
         -- modify or create transactions before this date.
         }
@@ -392,7 +394,7 @@ data AccountingPreferences
         -- ^ Logging all transactions in the audit trail report?
         , assigningJournalEntryNumbers :: Bool
         -- ^ Are numbers automatically assigned to journal entries?
-        , closingDate :: Maybe UTCTime
+        , closingDate :: Maybe Day
         -- ^ The company's closing date. Transaction access before this
         -- point may be restricted.
         } deriving (Show, Read)
@@ -743,7 +745,7 @@ data ItemsAndInventoryPreferences
         , trackingOnInventoryAdjustment :: Maybe Bool
         , trackingOnBuildAssembly :: Maybe Bool
         , fifoEnabled :: Maybe Bool
-        , fifoEffectiveDate :: Maybe UTCTime
+        , fifoEffectiveDate :: Maybe Day
         , rsbEnabled :: Maybe Bool
         , barcodeEnabled :: Maybe Bool
         } deriving (Read, Show)
