@@ -49,6 +49,13 @@ module QuickBooks.QBXML
     , CurrentAppAccessRights(..)
     , ItemsAndInventoryPreferences(..)
 
+      -- ** AccountQuery
+    , AccountData(..)
+    , AccountType(..)
+    , SpecialAccountType(..)
+    , TaxLineData(..)
+    , CashFlowClassification(..)
+
       -- ** Basic Types
     , Percentage(..)
     , ListReference(..)
@@ -74,6 +81,7 @@ import           Parser                         ( parseError
                                                 , parseInteger
                                                 , parseDecimal
                                                 , parseDate
+                                                , parseDatetime
                                                 )
 import           Text.XML.Generator             ( Xml
                                                 , Elem
@@ -125,6 +133,16 @@ data Response
     = HostResponse HostData
     | CompanyResponse CompanyData
     | PreferencesResponse PreferencesData
+    | AccountQueryResponse [AccountData]
+    deriving (Show, Read)
+
+instance FromXML Response where
+    fromXML = oneOf
+        [ HostResponse <$> find "HostQueryRs" fromXML
+        , CompanyResponse <$> find "CompanyQueryRs" fromXML
+        , PreferencesResponse <$> find "PreferencesQueryRs" fromXML
+        , AccountQueryResponse <$> find "AccountQueryRs" (findAll "AccountRet" fromXML)
+        ]
 
 
 -- | Information about the QuickBooks product & version we are
@@ -289,6 +307,90 @@ instance FromXML PreferencesData where
             fromXML
         return PreferencesData {..}
 
+
+data AccountData
+    = AccountData
+        { accountReference :: ListReference
+        -- ^ The account's List ID & Full Name.
+        -- TODO: The ListReference type has optional fields while these are
+        -- required fields.
+        , accountName :: Text
+        -- ^ The name of the account, not including any ancestor accounts.
+        , accountEditSequence :: Text
+        -- ^ A modification counter for an object. When updating an
+        -- account, you must include this value. QuickBooks will compare
+        -- the submitted EditSequence value with it's EditSequence value to
+        -- ensure there have been no changes to the account since we've
+        -- fetched the data.
+        , isActive :: Bool
+        -- ^ Is the account enabled for use in QuickBooks?
+        , parentAccount :: Maybe ListReference
+        -- ^ The parent account of the account.
+        , subLevel :: Integer
+        -- ^ The number of ancestors the account has.
+        , accountType :: AccountType
+        -- ^ The type of QuickBooks account this represents. Note that you
+        -- cannot create or modify a 'NonPosting' account through the SDK
+        -- since those are managed exclusively by QuickBooks.
+        , specialAccountType :: Maybe SpecialAccountType
+        -- ^ Accounts with a SpecialAccountType were automatically created
+        -- by QuickBooks for some purpose. Some of these are not overriden
+        -- or modifiable by the SDK.
+        , isTaxAccount :: Maybe Bool
+        -- ^ Is the account used for tax purposes?
+        , accountNumber :: Maybe Text
+        -- ^ The account number for the Chart of Accounts. Numbers are only
+        -- visible in the QuickBooks UI if the 'usingAccountNumbers'
+        -- preference is 'True'.
+        , bankNumber :: Maybe Text
+        -- ^ The bank account number for the account. Only returned if your
+        -- application has been granted access to sensitive data.
+        , description :: Maybe Text
+        -- ^ Some descriptive text about the account.
+        , balance :: Maybe Rational
+        -- ^ The current balance of the account. May not be present for
+        -- some income & balance sheet accounts.
+        , totalBalance :: Maybe Rational
+        -- ^ The total balance for the account & all it's sub-accounts.
+        , salesTaxCode :: Maybe ListReference
+        -- ^ The sales-tax code indicating whether the account has taxable
+        -- or non-taxable transactions.
+        , taxLineData :: Maybe TaxLineData
+        -- ^ The tax line this account is associated with for the company
+        -- file's 'TaxForm'.
+        , cashFlowClassification :: Maybe CashFlowClassification
+        -- ^ How is the account classified for cash flow reporting?
+        , currency :: Maybe ListReference
+        -- ^ The default currency for the account.
+        , createdAt :: UTCTime
+        -- ^ The time the account was created.
+        , modifiedAt :: UTCTime
+        -- ^ The time the account was last modified.
+        } deriving (Show, Read)
+
+instance FromXML AccountData where
+    fromXML = matchName "AccountRet" $ do
+        accountReference <- fromXML
+        accountName <- find "Name" parseContent
+        accountEditSequence <- find "EditSequence" parseContent
+        isActive <- find "IsActive" parseBool
+        parentAccount <- optional $ find "ParentRef" fromXML
+        subLevel <- find "Sublevel" parseInteger
+        accountType <- find "AccountType" fromXML
+        specialAccountType <- optional $ find "SpecialAccountType" fromXML
+        isTaxAccount <- optional $ find "IsTaxAccount" parseBool
+        accountNumber <- optional $ find "AccountNumber" parseContent
+        bankNumber <- optional $ find "BankNumber" parseContent
+        description <- optional $ find "Descr" parseContent
+        balance <- optional $ find "Balance" parseDecimal
+        totalBalance <- optional $ find "TotalBalance" parseDecimal
+        salesTaxCode <- optional $ find "SalesTaxCodeRef" fromXML
+        taxLineData <- optional $ find "TaxLineInfoRet" fromXML
+        cashFlowClassification <- optional $ find "CashFlowClassification" fromXML
+        currency <- optional $ find "CurrencyRef" fromXML
+        createdAt <- find "TimeCreated" parseDatetime
+        modifiedAt <- find "TimeModified" parseDatetime
+        return AccountData {..}
 
 
 -- Response Helpers
@@ -770,6 +872,110 @@ instance FromXML ItemsAndInventoryPreferences where
       where
         optionalBool n = optionalFind n parseBool
         optionalFind n = optional . find n
+
+
+-- ACCOUNTS
+
+-- | The types of accounts a user can create in QuickBooks.
+--
+-- Note: You cannot create or modify a 'NonPosting' account since they are
+-- managed exclusively by QuickBooks.
+data AccountType
+    = AccountsPayable
+    | AccountsReceivable
+    | Bank
+    | CostOfGoodsSold
+    | CreditCard
+    | Equity
+    | Expense
+    | FixedAsset
+    | Income
+    | LongTermLiability
+    | NonPosting
+    | OtherAsset
+    | OtherCurrentAsset
+    | OtherCurrentLiability
+    | OtherExpense
+    | OtherIncome
+    deriving (Show, Read, Eq)
+
+-- | Use the 'Read' instance to parse an AccountType.
+instance FromXML AccountType where
+    fromXML = parseRead
+
+
+-- | Special account types label accounts that have been automatically
+-- created by QuickBooks when needed.
+--
+-- Note: Some special accounts cannot be overridden, but the QuickBooks
+-- documentation does not specify exactly which types.
+data SpecialAccountType
+    = SpecialAccountsPayable
+    | SpecialAccountsReceivable
+    | CondenseItemAdjustmentExpenses
+    | SpecialCostOfGoodsSold
+    | DirectDepositLiabilities
+    | Estimates
+    | ExchangeGainLoss
+    | InventoryAssets
+    | ItemReceiptAccount
+    | OpeningBalanceEquity
+    | PayrollExpenses
+    | PayrollLiabilities
+    | PettyCash
+    | PurchaseOrders
+    | ReconciliationDifferences
+    | RetainedEarnings
+    | SalesOrders
+    | SalesTaxPayable
+    | UncategorizedExpenses
+    | UncategorizedIncome
+    | UndepositedFunds
+    deriving (Show, Read, Eq)
+
+-- | Parse using the 'Read' instance except for the values prefixed with
+-- @Special@. I.e., 'SpecialAccountsPayable', 'SpecialAccountsReceivable',
+-- and 'SpecialCostOfGoodsSold'.
+instance FromXML SpecialAccountType where
+    fromXML = parseContent >>= \case
+        "AccountsPayable" -> return SpecialAccountsPayable
+        "AccountsReceivable" -> return SpecialAccountsReceivable
+        "CostOfGoodsSold" -> return SpecialCostOfGoodsSold
+        _ -> parseRead
+
+
+-- | The line on a 'TaxForm' an Account is associated with. Only relevant
+-- if the company file has a 'TaxForm' specified.
+data TaxLineData
+    = TaxLineData
+        { taxLineID :: Integer
+        , taxLineName :: Maybe Text
+        } deriving (Show, Read)
+
+-- | Parse a TaxLineData from the current element.
+instance FromXML TaxLineData where
+    fromXML =
+        TaxLineData
+            <$> find "TaxLineID" parseInteger
+            <*> optional (find "TaxLineName" parseContent)
+
+
+-- | Account classifications for cash flow reporting.
+data CashFlowClassification
+    = None
+    -- ^ The Account has not yet been classified.
+    | Operating
+    | Investing
+    | Financing
+    | NotApplicable
+    -- ^ The Account does not qualify to be classified.
+    --
+    -- E.g., a bank account that tracks cash transactions.
+    deriving (Show, Read)
+
+-- | Parse a CashFlowClassification from it's 'Read' instance.
+instance FromXML CashFlowClassification where
+    fromXML = parseRead
 
 
 
