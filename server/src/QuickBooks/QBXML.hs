@@ -66,13 +66,15 @@ module QuickBooks.QBXML
     )
 where
 
-import           Data.ByteString                ( ByteString )
 import           Data.Text                      ( Text )
+import qualified Data.Text                     as T
+import           Data.Text.Encoding             ( decodeUtf8 )
 import           Data.Time                      ( Day
                                                 , UTCTime
                                                 )
 import           Parser                         ( parseError
                                                 , matchName
+                                                , oneOf
                                                 , find
                                                 , findAll
                                                 , optional
@@ -104,21 +106,29 @@ data Request
     = AccountQuery
     deriving (Show)
 
--- | Build the XML ByteString for a Request.
-buildRequest :: Request -> ByteString
+-- | Build the Request's XML into a Text value.
+--
+-- Newlines are stripped out because the QuickBooks SDK's XML parser did
+-- not like the output format of the 'xrender' function.
+buildRequest :: Request -> Text
 buildRequest r = wrapper $ case r of
     AccountQuery -> xelemEmpty "AccountQueryRq"
   where
-    wrapper :: Xml Elem -> ByteString
-    wrapper el = xrender $ qbxmlDoc $ xelem "QBXML" $ xelem
-        "QBXMLMsgsRq"
-        (xattr "onError" "stopOnError", el)
+    wrapper :: Xml Elem -> Text
+    wrapper el =
+        T.filter (/= '\n')
+            . decodeUtf8
+            . xrender
+            $ qbxmlDoc
+            $ xelem "QBXML"
+            $ xelem "QBXMLMsgsRq" (xattr "onError" "stopOnError", el)
 
 -- | Build a qbXML v13.0 document from a root element.
 qbxmlDoc :: Xml Elem -> Xml Doc
 qbxmlDoc content =
-    let qbxmlDocInfo =
-            defaultDocInfo { docInfo_docType = Just qbxmlDeclaration }
+    let qbxmlDocInfo = defaultDocInfo { docInfo_docType = Just qbxmlDeclaration
+                                      , docInfo_standalone = False
+                                      }
         qbxmlDeclaration = "<?qbxml version=\"13.0\"?>"
     in  doc qbxmlDocInfo content
 
