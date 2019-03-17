@@ -59,6 +59,7 @@ module QuickBooks.QBXML
       -- ** Basic Types
     , Percentage(..)
     , ListReference(..)
+    , OptionalListReference(..)
     , Address(..)
     , Month(..)
     , DayOfWeek(..)
@@ -312,8 +313,6 @@ data AccountData
     = AccountData
         { accountReference :: ListReference
         -- ^ The account's List ID & Full Name.
-        -- TODO: The ListReference type has optional fields while these are
-        -- required fields.
         , accountName :: Text
         -- ^ The name of the account, not including any ancestor accounts.
         , accountEditSequence :: Text
@@ -324,7 +323,7 @@ data AccountData
         -- fetched the data.
         , isActive :: Bool
         -- ^ Is the account enabled for use in QuickBooks?
-        , parentAccount :: Maybe ListReference
+        , parentAccount :: Maybe OptionalListReference
         -- ^ The parent account of the account.
         , subLevel :: Integer
         -- ^ The number of ancestors the account has.
@@ -352,7 +351,7 @@ data AccountData
         -- some income & balance sheet accounts.
         , totalBalance :: Maybe Rational
         -- ^ The total balance for the account & all it's sub-accounts.
-        , salesTaxCode :: Maybe ListReference
+        , salesTaxCode :: Maybe OptionalListReference
         -- ^ The sales-tax code indicating whether the account has taxable
         -- or non-taxable transactions.
         , taxLineData :: Maybe TaxLineData
@@ -360,7 +359,7 @@ data AccountData
         -- file's 'TaxForm'.
         , cashFlowClassification :: Maybe CashFlowClassification
         -- ^ How is the account classified for cash flow reporting?
-        , currency :: Maybe ListReference
+        , currency :: Maybe OptionalListReference
         -- ^ The default currency for the account.
         , createdAt :: UTCTime
         -- ^ The time the account was created.
@@ -544,7 +543,7 @@ data FinanceChargePreferences
         , gracePeriod :: Integer
         -- ^ The number of days before applying finance charges to an
         -- overdue invoice.
-        , financeChargeAccount :: Maybe ListReference
+        , financeChargeAccount :: Maybe OptionalListReference
         -- ^ The account that tracks finance charges that customers pay.
         , assessingForOverdueCharges :: Bool
         -- ^ Do we charge finance charges on overdue finance charges?
@@ -607,7 +606,7 @@ data MultiCurrencyPreferences
     = MultiCurrencyPreferences
         { multiCurrencyIsOn :: Maybe Bool
         -- ^ Is the multicurrency feature turned on?
-        , homeCurrency :: Maybe ListReference
+        , homeCurrency :: Maybe OptionalListReference
         -- ^ The currency of the country where the business is physically
         -- located.
         } deriving (Read, Show)
@@ -648,7 +647,7 @@ data PurchasesAndVendorsPreferences
         , automaticallyUsingDiscounts :: Bool
         -- ^ Are vendor discounts & credits automatically applied to bills
         -- being paid?
-        , defaultDiscountAccount :: Maybe ListReference
+        , defaultDiscountAccount :: Maybe OptionalListReference
         -- ^ The account where vendor discounts are tracked.
         } deriving (Show, Read)
 
@@ -707,7 +706,7 @@ instance FromXML SummaryReportBasis where
 -- | Settings for sales & customers.
 data SalesAndCustomersPreferences
     = SalesAndCustomersPreferences
-        { defaultShippingMethod :: Maybe ListReference
+        { defaultShippingMethod :: Maybe OptionalListReference
         -- ^ The default value in all @Ship Via@ fields. Refers to an item
         -- in the @ShipMethod@ list.
         , defaultShipingSite :: Maybe Text
@@ -758,14 +757,14 @@ instance FromXML PriceLevelPreferences where
 -- | Sales Tax settings for the company file.
 data SalesTaxPreferences
     = SalesTaxPreferences
-        { defaultSalesTaxCode :: ListReference
+        { defaultSalesTaxCode :: OptionalListReference
         -- ^ The default tax code for sales. Refers to an item in the
         -- SalesTaxCode list.
         , salesTaxPaymentFrequency :: SalesTaxFrequency
         -- ^ Frequency of sales tax reports.
-        , defaultTaxableSalesTaxCode :: ListReference
+        , defaultTaxableSalesTaxCode :: OptionalListReference
         -- ^ The default tx code for taxable sales.
-        , defaultNonTaxableSalesTaxCode :: ListReference
+        , defaultNonTaxableSalesTaxCode :: OptionalListReference
         -- ^ The default tx code for non-taxable sales.
         , usingVendorTaxCode :: Maybe Bool
         -- ^ Undocumented in QuickBooks Desktop API Reference.
@@ -991,23 +990,42 @@ instance FromXML Percentage where
     fromXML = Percentage <$> parseDecimal
 
 
--- | A reference to an item in a QuickBooks list. E.g., an Account or Tax
--- Code.
+-- | A reference to an item in a QuickBooks list, e.g. an Account, TaxCode,
+-- or Currency.
 --
 -- TODO: Maybe list-specific newtype wrappers, e.g. AccountRef, ItemRef,
 -- TaxCodeRef.
 data ListReference
     = ListReference
-        { listID :: Maybe Text
-        , fullName :: Maybe Text
+        { listID :: Text
+        , fullName :: Text
         } deriving (Show, Read)
 
--- | Parse a ListReference from the current Element.
+-- | Parse a ListReference from the current element's ListID & FullName
+-- child elements.
 instance FromXML ListReference where
     fromXML = do
-        listID   <- optional $ find "ListID" parseContent
-        fullName <- optional $ find "FullName" parseContent
+        listID   <- find "ListID" parseContent
+        fullName <- find "FullName" parseContent
         return ListReference {..}
+
+
+-- | A potential reference to an item in a QuickBooks list.
+--
+-- Unlike the 'ListReference' type, these are optional fields in query
+-- responses, so there may not be a ListID or FullName.
+data OptionalListReference
+    = OptionalListReference
+        { optionalListID :: Maybe Text
+        , optionalFullName :: Maybe Text
+        } deriving (Show, Read)
+
+-- | Parse an OptionalListReference from the current Element.
+instance FromXML OptionalListReference where
+    fromXML = do
+        optionalListID   <- optional $ find "ListID" parseContent
+        optionalFullName <- optional $ find "FullName" parseContent
+        return OptionalListReference {..}
 
 
 -- | A Complete QuickBooks Address.
