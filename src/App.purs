@@ -51,6 +51,8 @@ class HasNav a where
 instance hasnavEnv :: HasNav AppEnv where
     getNav (Env e) = e.nav
 
+
+
 class Monad m <= Navigation m where
     newUrl :: String -> m Unit
 
@@ -58,6 +60,7 @@ instance navEnv :: (HasNav e, MonadEffect m, MonadAsk e m) => Navigation m where
     newUrl url = do
         nav <- asks getNav
         liftEffect $ nav.pushState (unsafeToForeign {}) url
+
 
 class Monad m <= PreventDefaultClick m where
     preventClick :: ME.MouseEvent -> m Unit

@@ -7,15 +7,19 @@ import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Maybe (Maybe(..))
-import Effect.Class (class MonadEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Pages.NewCompany as NewCompany
 import Routing.Match (Match, lit, root, end)
 import Web.UIEvent.MouseEvent as ME
 
-import App (AppM, class Navigation, newUrl, class PreventDefaultClick, preventClick)
+import App
+    ( AppM
+    , class Navigation, newUrl
+    , class PreventDefaultClick, preventClick
+    )
 
 data Route
     = Home
@@ -96,7 +100,8 @@ eval = case _ of
     updatePage :: forall n. MonadState State n => Route -> n Unit
     updatePage route = H.modify_ (_ { currentPage = route })
 
-render :: forall q m. State -> H.ParentHTML Query q PageSlot m
+-- | Render the application.
+render :: forall m. State -> H.ParentHTML Query NewCompany.Query PageSlot m
 render { currentPage } =
     HH.div_
         [ renderHeader currentPage
@@ -129,18 +134,10 @@ renderHeader currentPage =
 
 -- | Render the page's component.
 -- | TODO: Use page slots to render
-renderPage :: forall a b. Route -> H.HTML a b
+renderPage :: forall m. Route -> H.ParentHTML Query NewCompany.Query PageSlot m
 renderPage = case _ of
     Home -> HH.fromPlainHTML renderHomepage
-    NewCompany -> HH.p_
-        [ HH.text "TODO: Form for adding new company w/ fields for:"
-        , HH.ul_
-            [ liText "Company Name"
-            , liText "Username"
-            , liText "Password"
-            , liText "Company File?"
-            ]
-        ]
+    NewCompany -> HH.slot NewCompanySlot NewCompany.component unit (const Nothing)
   where
     liText t = HH.li_ [HH.text t]
 

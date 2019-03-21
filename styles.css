@@ -10,6 +10,74 @@ body {
 
 
 
+/* Forms */
+label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1em;
+}
+label > div {
+  width: 25%;
+  text-align: right;
+  font-weight: bold;
+}
+
+label > input {
+  width: 33%;
+  margin-left: 1em;
+  line-height: 1.5;
+  border: 1px solid #1a1b25;
+  border-radius: 3px;
+  padding: 0.25em 0.5em;
+}
+
+label > input:focus {
+  outline: #197278 auto 2px;
+}
+
+button.primary {
+  font-size: 1rem;
+  color: white;
+  background-color: #197278;
+  padding: 0.5em;
+  border: #1a1b25 solid 1px;
+  border-radius: 5px;
+  transition: 0.3s background-color;
+  cursor: pointer;
+}
+
+button.primary:hover {
+  background-color: #409197;
+}
+
+@media (max-width: 800px) {
+  /* Larger Widths */
+  label > div {
+    width: 33%;
+  }
+  label > input {
+    width: 50%;
+  }
+}
+
+@media (max-width: 450px) {
+  /* Labels Above Inputs */
+  label {
+    flex-direction: column;
+  }
+  label > div {
+    width: 100%;
+    text-align: left;
+    padding-bottom: 0.25em;
+  }
+  label > input {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+
+
 /* Navigation Links */
 /* Dark, almost full-width navbar */
 nav {
