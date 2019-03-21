@@ -2,25 +2,27 @@ module App where
 
 import Prelude
 
-import Control.Monad.Reader 
+import Control.Monad.Reader
     ( ReaderT
     , runReaderT
     , class MonadAsk
-    , asks 
+    , asks
     )
-import Data.Newtype 
+import Data.Newtype
     ( class Newtype
     , unwrap
     )
 import Effect.Aff (Aff)
 import Effect.Aff.Class (class MonadAff)
-import Effect.Class 
+import Effect.Class
     ( class MonadEffect
     , liftEffect
     )
 import Foreign (unsafeToForeign)
-import Halogen as H
 import Routing.PushState (PushStateInterface)
+import Web.Event.Event as E
+import Web.UIEvent.MouseEvent as ME
+import Web.UIEvent.MouseEvent.EventTypes as MET
 
 newtype AppM a
     = AppM (ReaderT AppEnv Aff a)
@@ -43,16 +45,27 @@ data AppEnv
         { nav :: PushStateInterface
         }
 
-class HasNav a where 
+class HasNav a where
     getNav :: a -> PushStateInterface
 
-instance hasnavEnv :: HasNav AppEnv where 
+instance hasnavEnv :: HasNav AppEnv where
     getNav (Env e) = e.nav
 
-class Monad m <= Navigation m where 
+class Monad m <= Navigation m where
     newUrl :: String -> m Unit
 
-instance navEnv :: (HasNav e, MonadEffect m, MonadAsk e m) => Navigation m where 
+instance navEnv :: (HasNav e, MonadEffect m, MonadAsk e m) => Navigation m where
     newUrl url = do
         nav <- asks getNav
         liftEffect $ nav.pushState (unsafeToForeign {}) url
+
+class Monad m <= PreventDefaultClick m where
+    preventClick :: ME.MouseEvent -> m Unit
+
+instance prevdefclickEffect :: (MonadEffect m) => PreventDefaultClick m where
+    preventClick ev =
+        let event = ME.toEvent ev in
+        if E.type_ event == MET.click then
+            liftEffect $ E.preventDefault event
+        else
+            pure unit

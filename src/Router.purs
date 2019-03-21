@@ -13,10 +13,9 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Routing.Match (Match, lit, root, end)
-import Web.Event.Event as E
 import Web.UIEvent.MouseEvent as ME
 
-import App (class Navigation, AppM, newUrl)
+import App (AppM, class Navigation, newUrl, class PreventDefaultClick, preventClick)
 
 data Route
     = Home
@@ -75,21 +74,21 @@ initial :: State
 initial = { currentPage : Home }
 
 data PageSlot
-    = HomeSlot
+    = NewCompanySlot
 
 derive instance eqPageSlot :: Eq PageSlot
 derive instance ordPageSlot :: Ord PageSlot
 
+-- | Handle Navigation clicks & URL updates.
 eval :: forall m
      . MonadState State m
     => Navigation m
-    => MonadEffect m
+    => PreventDefaultClick m
     => Query ~> m
 eval = case _ of
     (NavClick route ev next) -> do
-       H.liftEffect $ E.preventDefault $ ME.toEvent ev
+       preventClick ev
        newUrl $ reverse route
-       updatePage route
        pure next
     (UpdateRoute route next) ->
        updatePage route *> pure next
