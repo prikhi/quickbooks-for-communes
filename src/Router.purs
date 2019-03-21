@@ -106,6 +106,7 @@ render { currentPage } =
             ]
         ]
 
+-- | Render the page header/navigation.
 -- | TODO: Company Selector
 renderHeader :: forall a. Route -> H.HTML a Query
 renderHeader currentPage =
@@ -123,8 +124,7 @@ renderHeader currentPage =
 -- | TODO: Use page slots to render
 renderPage :: forall a b. Route -> H.HTML a b
 renderPage = case _ of
-    Home -> HH.p_
-        [ HH.text "TODO: Throw a Chart of Accounts or Some Intro Text Here." ]
+    Home -> HH.fromPlainHTML renderHomepage
     NewCompany -> HH.p_
         [ HH.text "TODO: Form for adding new company w/ fields for:"
         , HH.ul_
@@ -136,6 +136,13 @@ renderPage = case _ of
         ]
   where
     liText t = HH.li_ [HH.text t]
+
+-- | Render the static HTML for the home page.
+renderHomepage :: HH.PlainHTML
+renderHomepage =
+    HH.p_
+        [ HH.text "TODO: Throw a Chart of Accounts or Some Intro Text Here."
+        ]
 
 -- | Render a navigation link.
 navigationLink :: forall a. Route -> Route -> H.HTML a Query
