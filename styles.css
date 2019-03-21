@@ -8,13 +8,10 @@ body {
   background-color: white;
 }
 
-/* Common */
-h1, h2, h3, h4, h5, h6 {
-  margin-left: 0.75rem;
-}
 
 
-/* Navigation */
+/* Navigation Links */
+/* Dark, almost full-width navbar */
 nav {
   width: 95%;
   color: white;
@@ -78,10 +75,11 @@ nav a.brand:active, nav a.brand:hover {
 }
 
 
-/* Page Content */
 
+/* Page Content w/ Responsive Widths */
 body > div > div.content {
   margin: 0 auto;
+  padding-bottom: 1rem;
   max-width: 95%;
 }
 
