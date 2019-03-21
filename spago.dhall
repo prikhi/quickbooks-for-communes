@@ -5,7 +5,15 @@ You can edit this file as you like.
 { name =
     "my-project"
 , dependencies =
-    [ "effect", "console" ]
+    [ "console"
+    , "effect"
+    , "foreign"
+    , "generics-rep"
+    , "halogen"
+    , "routing"
+    , "st"
+    , "transformers"
+    ]
 , packages =
     ./packages.dhall
 }
