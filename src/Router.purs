@@ -7,6 +7,7 @@ import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Maybe (Maybe(..))
+import Effect.Class (class MonadEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -101,7 +102,9 @@ eval = case _ of
     updatePage route = H.modify_ (_ { currentPage = route })
 
 -- | Render the application.
-render :: forall m. State -> H.ParentHTML Query NewCompany.Query PageSlot m
+render :: forall m
+    . MonadEffect m
+   => State -> H.ParentHTML Query NewCompany.Query PageSlot m
 render { currentPage } =
     HH.div_
         [ renderHeader currentPage
@@ -134,7 +137,9 @@ renderHeader currentPage =
 
 -- | Render the page's component.
 -- | TODO: Use page slots to render
-renderPage :: forall m. Route -> H.ParentHTML Query NewCompany.Query PageSlot m
+renderPage :: forall m
+    . MonadEffect m
+   => Route -> H.ParentHTML Query NewCompany.Query PageSlot m
 renderPage = case _ of
     Home -> HH.fromPlainHTML renderHomepage
     NewCompany -> HH.slot NewCompanySlot NewCompany.component unit (const Nothing)
