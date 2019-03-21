@@ -2,25 +2,26 @@ body {
   padding: 0;
   margin: 0;
   font-family: Sans;
+  color: #1a1b25;
 }
 
 /* Common */
 h1, h2, h3, h4, h5, h6 {
-  margin-left: 2rem;
+  margin-left: 0.75rem;
 }
 
 
 /* Navigation */
 nav {
-  width: 100%;
-  color: white;
-  background-color: green;
+  width: 95%;
+  color: #c9d5ec;
+  background-color: #1a1b25;
   margin: 0;
   padding: 0 2.5%;
 }
 
 nav a, nav a:visited {
-  color: white;
+  color: #c9d5ec;
   display: inline-block;
   padding: 0.75rem 1rem;
   text-decoration: none;
@@ -28,12 +29,11 @@ nav a, nav a:visited {
 }
 
 nav a.active {
-  background-color: darkgreen;
+  background-color: #383944;
 }
 
 nav a:active, nav a:hover {
-  color: black;
-  background-color: forestgreen;
+  background-color: #197278;
 }
 
 nav a.brand {
@@ -52,5 +52,18 @@ nav a.brand:active, nav a.brand:hover {
 /* Page Content */
 
 body > div > div.content {
-  padding: 0 5%;
+  margin: 0 auto;
+  max-width: 95%;
+}
+
+@media (min-width: 360px) {
+  body > div > div.content {
+    max-width: 90%;
+  }
+}
+
+@media (min-width: 1400px) {
+  body > div > div.content {
+    max-width: 1250px;
+  }
 }
