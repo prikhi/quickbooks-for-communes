@@ -110,17 +110,24 @@ render { currentPage } =
 -- | TODO: Company Selector
 renderHeader :: forall a. Route -> H.HTML a Query
 renderHeader currentPage =
-    let navLink = navigationLink currentPage in
-    HH.nav [ HP.class_ $ H.ClassName "navbar" ]
-        [ HH.a
+    HH.nav_
+        [ brandLink
+        , navLink NewCompany
+        ]
+  where
+    brandLink :: H.HTML a Query
+    brandLink =
+        HH.a
             [ HP.class_ $ H.ClassName "brand"
             , HP.href $ reverse Home
             , HE.onClick $ HE.input $ NavClick Home
             ]
             [ HH.text "Acorn Accounting" ]
-        , navLink NewCompany
-        ]
+    navLink :: Route -> H.HTML a Query
+    navLink =
+        navigationLink currentPage
 
+-- | Render the page's component.
 -- | TODO: Use page slots to render
 renderPage :: forall a b. Route -> H.HTML a b
 renderPage = case _ of
@@ -152,4 +159,4 @@ navigationLink currentPage route =
         , HE.onClick $ HE.input $ NavClick route
         , HP.classes $ if route == currentPage then [H.ClassName "active"] else []
         ]
-        [ HH.text $ routeName route ]
+        [ HH.span_ [ HH.text $ routeName route ] ]

@@ -1,8 +1,11 @@
+/* Common */
 body {
   padding: 0;
   margin: 0;
   font-family: Sans;
+  font-size: 1rem;
   color: #1a1b25;
+  background-color: white;
 }
 
 /* Common */
@@ -14,29 +17,55 @@ h1, h2, h3, h4, h5, h6 {
 /* Navigation */
 nav {
   width: 95%;
-  color: #c9d5ec;
+  color: white;
   background-color: #1a1b25;
   margin: 0;
   padding: 0 2.5%;
+  display: flex;
+  height: 2.6875rem;
 }
 
+/* Centered, full-height nav links */
 nav a, nav a:visited {
-  color: #c9d5ec;
-  display: inline-block;
-  padding: 0.75rem 1rem;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 1rem;
   text-decoration: none;
   transition: 0.3s background-color;
+  height: 100%;
+  position: relative;
 }
 
+/* Use a lighter background color for the current page's nav link. */
 nav a.active {
   background-color: #383944;
 }
 
+/* Change the background color of the hovered/active nav item */
 nav a:active, nav a:hover {
   background-color: #197278;
 }
 
+/* Show a highlight bar at the bottom of hovered/active nav item */
+nav a span::after, nav a span::after {
+  background-color: #d30c7b;
+  content: '';
+  width: 100%;
+  height: 7.5%;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  transition: 0.3s opacity;
+  opacity: 0;
+}
+nav a:active span::after, nav a:hover span::after {
+  opacity: 1;
+}
+
 nav a.brand {
+  display: inline-flex;
+  align-items: center;
   font-weight: bold;
   font-size: 1.1rem;
   margin-right: 0.75em;
