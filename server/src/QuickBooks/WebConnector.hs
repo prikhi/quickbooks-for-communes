@@ -28,6 +28,7 @@ import           Data.Text                      ( Text
                                                 , pack
                                                 , unpack
                                                 )
+import qualified Data.Text                     as T
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
 import           Parser                         ( Parser
@@ -36,11 +37,15 @@ import           Parser                         ( Parser
                                                 , oneOf
                                                 , find
                                                 , at
+                                                , parseInteger
                                                 , parseContent
                                                 , parseContentWith
                                                 , withNamespace
                                                 )
-import           QuickBooks.QBXML               ( HostData
+import           QuickBooks.QBXML               ( Request(..)
+                                                , buildRequest
+                                                , Response(..)
+                                                , HostData
                                                 , CompanyData
                                                 , PreferencesData
                                                 )
@@ -194,6 +199,22 @@ data Callback
     = ServerVersion
     | ClientVersion Text
     | Authenticate Username Password
+    -- | The first sendRequestXML callback received contains Host, Company,
+    -- & Preference data.
+    --
+    -- TODO: Split out into separate record type so we can get named fields?
+    | InitialSendRequestXML
+        UUID                -- ^ The session ticket
+        HostData            -- ^ HostQuery data for the running version of QuickBooks
+        CompanyData         -- ^ CompanyQuery data for the company file
+        PreferencesData     -- ^ PreferencesQuery data for the company file
+        Text                -- ^ The Company Filename
+        Text                -- ^ The Country version of QuickBooks
+        Integer             -- ^ The Major version of the qbXML Processor
+        Integer             -- ^ The Minor version of the qbXML Processor
+    | ReceiveResponseXML
+        UUID                -- ^ The session ticket
+        Response            -- ^ The parsed qbXML response
     deriving (Show)
 
 instance FromXML Callback where
@@ -201,6 +222,8 @@ instance FromXML Callback where
         [ parseServerVersion
         , parseClientVersion
         , parseAuthenticate
+        , parseInitialSendRequestXML
+        , parseReceiveResponseXML
         , parseError "Unsupported WebConnector Callback"
         ]
 
@@ -220,11 +243,49 @@ parseAuthenticate = matchName (qbName "authenticate") $ do
     pass <- Password <$> find (qbName "strPassword") parseContent
     return $ Authenticate user pass
 
+parseInitialSendRequestXML :: Parser Callback
+parseInitialSendRequestXML = matchName (qbName "sendRequestXML") $ do
+    (hostData, companyData, preferencesData) <-
+        find (qbName "strHCPResponse")
+        $   parseContentWith
+        $   find "QBXMLMsgsRs"
+        $   (,,)
+        <$> at ["HostQueryRs", "HostRet"]               fromXML
+        <*> at ["CompanyQueryRs", "CompanyRet"]         fromXML
+        <*> at ["PreferencesQueryRs", "PreferencesRet"] fromXML
+    ticket       <- find (qbName "ticket") parseUUID
+    companyFile  <- find (qbName "strCompanyFileName") parseContent
+    country      <- find (qbName "qbXMLCountry") parseContent
+    majorVersion <- find (qbName "qbXMLMajorVers") parseInteger
+    minorVersion <- find (qbName "qbXMLMinorVers") parseInteger
+    return $ InitialSendRequestXML ticket
+                                   hostData
+                                   companyData
+                                   preferencesData
+                                   companyFile
+                                   country
+                                   majorVersion
+                                   minorVersion
+
+parseReceiveResponseXML :: Parser Callback
+parseReceiveResponseXML = matchName (qbName "receiveResponseXML") $ do
+    ticket <- find (qbName "ticket") parseUUID
+    resp   <- find (qbName "response") $ parseContentWith $ find "QBXMLMsgsRs"
+                                                                 fromXML
+    return $ ReceiveResponseXML ticket resp
 
 -- | Build an 'Element' name in the Intuit Developer 'Namespace'.
 qbName :: Text -> Name
 qbName = withNamespace "http://developer.intuit.com/"
 
+-- | Parse a UUID that is enclosed in braces(@{}@).
+parseUUID :: Parser UUID
+parseUUID = do
+    str <- parseContent
+    case UUID.fromText (dropBrackets str) of
+        Just val -> return val
+        Nothing  -> parseError $ "Expected {UUID}, got: " <> str
+    where dropBrackets = T.reverse . T.drop 1 . T.reverse . T.drop 1
 
 -- | Valid responses for callbacks.
 --
@@ -238,6 +299,12 @@ data CallbackResponse
     -- TODO: Refactor Text into Type w/ valid states(Accept, Warn, Error)
     | AuthenticateResp UUID AuthResult (Maybe PostponeMinutes) (Maybe AutorunMinutes)
     -- ^ Return a session ticket & the authentication result
+    | SendRequestXMLResp Request
+    -- ^ Send the given qbXML request
+    | ReceiveResponseXMLResp Integer
+    -- ^ Send the 0-100 percentage complete or a negative number as an
+    -- error.
+    -- TODO: Refactor Integer into InProgress, Complete, or Error types.
     deriving (Show)
 
 instance ToXML CallbackResponse where
@@ -257,6 +324,15 @@ instance ToXML CallbackResponse where
                         , fmap showT maybePostpone
                         , fmap showT maybeAutorun
                         ]
+        SendRequestXMLResp req ->
+            xelemQ qbNamespace "sendRequestXMLResponse" $
+                xelemQ qbNamespace "sendRequestXMLResult" $
+                    xtext $ buildRequest req
+        ReceiveResponseXMLResp progress ->
+            xelemQ qbNamespace "receiveResponseXMLResponse" $
+                xelemQ qbNamespace "receiveResponseXMLResult" $
+                    xtext $ showT progress
+
 
 -- | Render a Text list as a QuickBooks String Array.
 qbStringArray :: [Text] -> Xml Elem

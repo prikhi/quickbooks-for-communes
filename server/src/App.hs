@@ -38,6 +38,7 @@ import           DB.Fields                      ( UUIDField(..)
                                                 )
 import           Network.Wai                    ( Application )
 import           Paths_qbfc                     ( version )
+import           QuickBooks.QBXML               ( Request(AccountQuery) )
 import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , QBType(..)
                                                 , Schedule(..)
@@ -157,6 +158,15 @@ accountQuery r = case r of
                 }
             return ticket
         return $ AuthenticateResp ticket authResult Nothing Nothing
+    InitialSendRequestXML{} -> do
+        -- TODO: Update company file name?
+        --       Build query w/ modified time as globalLastSyncTime
+        liftIO $ print r
+        return $ SendRequestXMLResp AccountQuery
+    ReceiveResponseXML _ resp -> do
+        -- TODO: Update Accounts for company
+        liftIO $ print resp
+        return $ ReceiveResponseXMLResp 100
 
 -- | Generate a 'Session' 'UUID' that does not yet exist in the
 -- database.
