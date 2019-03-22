@@ -1,0 +1,158 @@
+/* Variables */
+$dark: #1A1B25
+$teal: #197278
+$magenta: #d30c7b
+$orange: #f46036
+$blue-gray: #8D99AE
+$light-gray: #CBD0DA
+$gray-white: #F4F5F7
+
+
+$body-text: $dark
+$body-bg: $gray-white
+
+$nav-text: $body-bg
+$nav-bg: $body-text
+
+
+/* Common */
+body
+  padding: 0
+  margin: 0
+  font-family: Sans
+  font-size: 1rem
+  color: $body-text
+  background-color: $body-bg
+
+
+
+/* Forms */
+label
+  display: flex
+  align-items: center
+  margin-bottom: 1em
+
+  > div
+    width: 25%
+    text-align: right
+    font-weight: bold
+
+  > input
+    width: 33%
+    margin-left: 1em
+    line-height: 1.5
+    border: 1px solid $body-text
+    border-radius: 3px
+    padding: 0.25em 0.5em
+    background-color: lighten($body-bg, 2.5%)
+    // Transition the focus highlights
+    transition: 0.3s border-color, 0.3s box-shadow
+
+    &:focus
+      outline: 0
+      border-color: $teal
+      box-shadow: inset 0 1px 1px rgba($body-bg, 0.075), 0 0 4px rgba($teal, 0.8)
+
+  @media screen and (max-width: 800px)
+    & > div
+      width: 33%
+    & > input
+      width: 50%
+
+  @media screen and (max-width: 450px)
+    &
+      flex-direction: column
+    & > div
+      width: 100%
+      text-align: left
+      padding-bottom: 0.25em
+    & > input
+      width: 100%
+      margin-left: 0
+
+button.primary
+  font-size: 1rem
+  color: $body-bg
+  background-color: $teal
+  padding: 0.5em
+  border: $body-text solid 1px
+  border-radius: 5px
+  transition: 0.3s background-color
+  cursor: pointer
+
+  &:hover
+    background-color: lighten($teal, 10%)
+
+
+
+/* Site Navigation */
+/* Dark, nearly full-width navbar */
+nav
+  color: $nav-text
+  background-color: $nav-bg
+  display: flex
+  margin: 0
+  padding: 0 2.5%
+  width: 95%
+  height: 2.6875rem
+
+  /* Centered, full-height nav links */
+  a, a:visited
+    color: $nav-text
+    display: inline-flex
+    align-items: center
+    padding: 0 1rem
+    text-decoration: none
+    height: 100%
+    /* Required for hover underline positioning */
+    position: relative
+    /* Transition backgrond color changes during hover */
+    transition: 0.3s background-color
+
+    /* Lighter color for current page */
+    &.active
+      background-color: lighten($nav-bg, 15%)
+
+    /* Contrasting color on hover */
+    &:active, &:hover
+      background-color: $teal
+
+    /* Show underline highlight when hovering using :after element */
+    > span::after
+      background-color: $magenta
+      content: ''
+      width: 100%
+      height: 7.5%
+      position: absolute
+      bottom: 0
+      left: 0
+      transition: 0.3s opacity
+      opacity: 0
+
+    &:active > span::after, &:hover > span::after
+      opacity: 1
+
+  /* Larger site/brand/homepage link w/ no hover effects */
+  a.brand
+    font-size: 1.1rem
+    font-weight: bold
+    padding: 0
+    margin-right: 0.75em
+
+    &:active, &:hover
+      color: inherit
+      background-color: inherit
+
+
+
+/* Page Content */
+body > div > div.content
+  margin: 0 auto
+  padding-bottom: 1rem
+  max-width: 95%
+
+  @media screen and (min-width: 360px)
+    max-width: 90%
+
+  @media screen and (min-width: 1400px)
+    max-width: 1250px
