@@ -13,7 +13,6 @@ import Prelude
 
 import Control.Monad.State (class MonadState)
 import Data.Maybe (Maybe(..))
-import Effect.Class (class MonadEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -27,8 +26,7 @@ import App
 
 
 component :: forall m i o
-    . MonadEffect m
-   => PreventDefaultSubmit m
+    . PreventDefaultSubmit m
    => LogToConsole m
    => H.Component HH.HTML Query i o m
 component = H.component

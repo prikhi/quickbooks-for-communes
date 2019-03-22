@@ -20,6 +20,7 @@ import Effect.Class
     )
 import Effect.Class.Console as Console
 import Foreign (unsafeToForeign)
+import Halogen as H
 import Routing.PushState (PushStateInterface)
 import Web.Event.Event as E
 import Web.HTML.Event.EventTypes as ET
@@ -61,23 +62,31 @@ instance hasNavEnv :: HasNav AppEnv where
 
 
 -- Functionality-based Typeclasses
+--
+-- These should be defined for our base monad AppM, as well as the HalogenM
+-- wrapper that the Halogen.component & Halogen.parentComponent return.
 
 -- Navigation
 
 class Monad m <= Navigation m where
     newUrl :: String -> m Unit
 
-instance navEnv :: (HasNav e, MonadEffect m, MonadAsk e m) => Navigation m where
+instance navEnv :: Navigation AppM where
     newUrl url = do
         nav <- asks getNav
         liftEffect $ nav.pushState (unsafeToForeign {}) url
+
+instance navHalogen :: Navigation m
+    => Navigation (H.HalogenM s f g p o m) where
+    newUrl = H.lift <<< newUrl
+
 
 -- Event Prevention
 
 class Monad m <= PreventDefaultClick m where
     preventClick :: ME.MouseEvent -> m Unit
 
-instance prevDefClickEffect :: (MonadEffect m) => PreventDefaultClick m where
+instance prevDefClickApp :: PreventDefaultClick AppM where
     preventClick ev =
         let event = ME.toEvent ev in
         if E.type_ event == MET.click then
@@ -85,16 +94,25 @@ instance prevDefClickEffect :: (MonadEffect m) => PreventDefaultClick m where
         else
             pure unit
 
+instance prevDefClickHalogen :: PreventDefaultClick m
+    => PreventDefaultClick (H.HalogenM s f g p o m) where
+    preventClick = H.lift <<< preventClick
+
 
 class Monad m <= PreventDefaultSubmit m where
     preventSubmit :: E.Event -> m Unit
 
-instance prevDefSubmitEffect :: (MonadEffect m) => PreventDefaultSubmit m where
+instance prevDefSubmitApp :: PreventDefaultSubmit AppM where
     preventSubmit ev =
         if E.type_ ev == ET.submit then
             liftEffect $ E.preventDefault ev
         else
             pure unit
+
+instance prevDefSubmitHalogen :: PreventDefaultSubmit m
+    => PreventDefaultSubmit (H.HalogenM s f g p o m) where
+    preventSubmit = H.lift <<< preventSubmit
+
 
 -- Logging
 
@@ -102,6 +120,11 @@ class Monad m <= LogToConsole m where
     logShow :: forall a. Show a => a -> m Unit
     log :: String -> m Unit
 
-instance logToConsoleEffect :: MonadEffect m => LogToConsole m where
+instance logToConsoleApp :: LogToConsole AppM where
     logShow = Console.logShow
     log = Console.log
+
+instance logToConsoleHalogen :: LogToConsole m
+    => LogToConsole (H.HalogenM s f g p o m) where
+    logShow = H.lift <<< logShow
+    log = H.lift <<< log

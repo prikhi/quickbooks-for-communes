@@ -7,7 +7,6 @@ import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Maybe (Maybe(..))
-import Effect.Class (class MonadEffect)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -17,9 +16,10 @@ import Routing.Match (Match, lit, root, end)
 import Web.UIEvent.MouseEvent as ME
 
 import App
-    ( AppM
-    , class Navigation, newUrl
+    ( class Navigation, newUrl
     , class PreventDefaultClick, preventClick
+    , class PreventDefaultSubmit
+    , class LogToConsole
     )
 
 data Route
@@ -67,7 +67,12 @@ reverse = case _ of
     Home -> "/"
     NewCompany -> "/new-company/"
 
-component :: H.Component HH.HTML Query Unit Void AppM
+component :: forall m
+    . PreventDefaultSubmit m
+   => PreventDefaultClick m
+   => Navigation m
+   => LogToConsole m
+   => H.Component HH.HTML Query Unit Void m
 component = H.parentComponent
     { initialState: const initial
     , render
@@ -103,7 +108,8 @@ eval = case _ of
 
 -- | Render the application.
 render :: forall m
-    . MonadEffect m
+    . LogToConsole m
+   => PreventDefaultSubmit m
    => State -> H.ParentHTML Query NewCompany.Query PageSlot m
 render { currentPage } =
     HH.div_
@@ -138,7 +144,8 @@ renderHeader currentPage =
 -- | Render the page's component.
 -- | TODO: Use page slots to render
 renderPage :: forall m
-    . MonadEffect m
+    . LogToConsole m
+   => PreventDefaultSubmit m
    => Route -> H.ParentHTML Query NewCompany.Query PageSlot m
 renderPage = case _ of
     Home -> HH.fromPlainHTML renderHomepage
