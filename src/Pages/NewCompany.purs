@@ -40,17 +40,17 @@ component = H.component
 
 -- | The form data.
 type State =
-    { name :: String
-    , username :: String
-    , password :: String
+    { name :: Maybe String
+    , username :: Maybe String
+    , password :: Maybe String
     }
 
 -- | Start the form as blank.
 initial :: State
 initial =
-    { name: ""
-    , username: ""
-    , password: ""
+    { name: Nothing
+    , username: Nothing
+    , password: Nothing
     }
 
 
@@ -71,13 +71,13 @@ eval :: forall m
    => Query ~> m
 eval = case _ of
     InputName str next -> do
-        H.modify_ (_ { name = str })
+        H.modify_ (_ { name = Just str })
         pure next
     InputUser str next -> do
-        H.modify_ (_ { username = str })
+        H.modify_ (_ { username = Just str })
         pure next
     InputPass str next -> do
-        H.modify_ (_ { password = str })
+        H.modify_ (_ { password = Just str })
         pure next
     SubmitForm ev next -> do
         preventSubmit ev
@@ -115,17 +115,22 @@ render st =
 -- | Render a standard `HH.input` element with a label.
 -- |
 -- | TODO: add to Forms module?
-input :: forall p i. String -> HP.InputType -> String -> (String -> Unit -> i Unit) -> HH.HTML p (i Unit)
+input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> HH.HTML p (i Unit)
 input label type_ value action =
     HH.label_
         [ HH.div_ [ HH.text label ]
-        , HH.input
+        , HH.input $
             [ HP.type_ type_
-            , HP.value value
             , HP.required true
             , HE.onValueChange $ HE.input action
-            ]
+            ] <> optionalValue
         ]
+  where
+    optionalValue :: forall r i_. Array (HP.IProp ( value :: String | r ) i_)
+    optionalValue = case value of
+        Nothing ->
+            []
+        Just val -> [ HP.value val ]
 
 -- | Render a standard `HH.button` element.
 -- |
