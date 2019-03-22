@@ -130,7 +130,7 @@ renderHeader currentPage =
             , HP.href $ reverse Home
             , HE.onClick $ HE.input $ NavClick Home
             ]
-            [ HH.text "Acorn Accounting" ]
+            [ HH.text "AcornAccounting" ]
     navLink :: Route -> H.HTML a Query
     navLink =
         navigationLink currentPage
