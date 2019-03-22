@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators #-}
@@ -13,31 +12,20 @@ import           Api                            ( API
                                                 , api
                                                 )
 import           Config                         ( AppConfig(..) )
-import           Control.Exception.Safe         ( MonadThrow
-                                                , try
-                                                )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
-import           Control.Monad.IO.Unlift        ( MonadUnliftIO(..)
-                                                , wrappedWithRunInIO
-                                                )
+import           Control.Exception.Safe         ( try )
+import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Except           ( ExceptT(..) )
 import           Control.Monad.Reader           ( MonadReader
-                                                , ReaderT
                                                 , runReaderT
                                                 , asks
                                                 )
-import           Data.Pool                      ( Pool )
 import           Data.Text                      ( Text
                                                 , pack
                                                 )
 import qualified Data.Text                     as T
 import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
-import           Database.Persist.Sql           ( SqlBackend
-                                                , runSqlPool
-                                                , insert_
+import           Database.Persist.Sql           ( insert_
                                                 , getBy
                                                 )
 import           DB.Schema                      ( Session(..)
@@ -67,6 +55,11 @@ import           Servant.Server                 ( ServerT
                                                 , hoistServer
                                                 )
 import           System.Random                  ( randomIO )
+import           Types                          ( AppEnv(..)
+                                                , AppM(..)
+                                                , AppSqlM
+                                                , runDB
+                                                )
 
 -- | The API server as a WAI Application.
 app :: AppEnv -> Application
@@ -78,32 +71,6 @@ app env = serve api appServer
     -- Result.
     transform :: AppM a -> Handler a
     transform m = Handler $ ExceptT $ try $ runReaderT (fromAppM m) env
-
--- | The environment the application runs in. This includes static
--- configuration data as well as global runtime resources like the database
--- connection pool.
-data AppEnv
-    = AppEnv
-        { appConfig :: AppConfig
-        , appDBPool :: Pool SqlBackend
-        }
-
--- | The monadic stack the handler routes run under.
-newtype AppM a
-    = AppM { fromAppM :: ReaderT AppEnv IO a }
-    deriving (Functor, Applicative, Monad, MonadThrow, MonadIO, MonadReader AppEnv)
-
--- | Wrap/unwrap the ReaderT instance with 'AppM'/'fromAppM' calls.
-instance MonadUnliftIO AppM where
-    withRunInIO = wrappedWithRunInIO AppM fromAppM
-
--- | The monad for the application's database queries.
-type AppSqlM a = ReaderT SqlBackend AppM a
-
--- | Run a series of database queries in a transaction. The transaction
--- will be rolled back when an exception is thrown.
-runDB :: AppSqlM a -> AppM a
-runDB query = asks appDBPool >>= runSqlPool query
 
 
 -- | Join the separate route handlers to create our API.
@@ -172,7 +139,7 @@ accountQuery r = case r of
         return $ ClientVersionResp ""
     Authenticate (Username user) (Password pass) -> do
         -- Authentication succeeds when the User matches
-        -- TODO: pass companyfile if known
+        -- TODO: pass companyfile if known?
         -- TODO: Use bcrypt to hash password & compare to stored hash
         expectedUser <- asks $ appAccountSyncUsername . appConfig
         expectedPass <- asks $ appAccountSyncPassword . appConfig
