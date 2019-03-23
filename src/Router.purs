@@ -21,6 +21,7 @@ import App
     , class PreventDefaultSubmit
     , class LogToConsole
     )
+import Server (class Server)
 
 data Route
     = Home
@@ -72,6 +73,7 @@ component :: forall m
    => PreventDefaultClick m
    => Navigation m
    => LogToConsole m
+   => Server m
    => H.Component HH.HTML Query Unit Void m
 component = H.parentComponent
     { initialState: const initial
@@ -110,6 +112,7 @@ eval = case _ of
 render :: forall m
     . LogToConsole m
    => PreventDefaultSubmit m
+   => Server m
    => State -> H.ParentHTML Query NewCompany.Query PageSlot m
 render { currentPage } =
     HH.div_
@@ -146,6 +149,7 @@ renderHeader currentPage =
 renderPage :: forall m
     . LogToConsole m
    => PreventDefaultSubmit m
+   => Server m
    => Route -> H.ParentHTML Query NewCompany.Query PageSlot m
 renderPage = case _ of
     Home -> HH.fromPlainHTML renderHomepage

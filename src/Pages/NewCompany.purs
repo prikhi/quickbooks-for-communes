@@ -28,12 +28,13 @@ import App
     ( class PreventDefaultSubmit, preventSubmit
     , class LogToConsole, logShow
     )
-import Server (NewCompanyData(..))
+import Server (class Server, newCompanyRequest, NewCompanyData(..))
 
 
 component :: forall m i o
     . PreventDefaultSubmit m
    => LogToConsole m
+   => Server m
    => H.Component HH.HTML Query i o m
 component = H.component
     { initialState: const initial
@@ -81,6 +82,7 @@ eval :: forall m
     . MonadState State m
    => PreventDefaultSubmit m
    => LogToConsole m
+   => Server m
    => Query ~> m
 eval = case _ of
     InputName str next -> do
@@ -104,6 +106,10 @@ eval = case _ of
                 H.modify_ (_ { errors = errs })
             Right ncd -> do
                 H.modify_ (_ { errors = empty })
+                -- TODO: Handle some response, like company id or the qwc file.
+                -- TODO: Handle submission errors, through status code?
+                --       Or request decoder?
+                void $ newCompanyRequest ncd
         pure next
   where
     revalidate_ = revalidate validate
