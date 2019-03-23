@@ -14,16 +14,16 @@ npx spago install
 npx spago build
 ```
 
-Add the `-w` option to re-build on file changes:
+You can rebuild on file changes:
 
 ```sh
-npx spago build -w
+npm run watch
 ```
 
-You can start a dev server with `parcel`:
+You can start a dev server that redirects `/api/` paths to the backend:
 
 ```sh
-npx parcel server index.html
+npm run serve
 ```
 
 Or build for production:

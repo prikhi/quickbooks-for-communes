@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "spago bundle -w",
+    "serve": "node dev-server.js",
     "pscid:build": "spago build"
   },
   "author": "",
@@ -16,6 +18,8 @@
     "spago": "^0.7.1"
   },
   "devDependencies": {
+    "express": "^4.16.4",
+    "http-proxy-middleware": "^0.19.1",
     "sass": "^1.17.3"
   }
 }
