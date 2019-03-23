@@ -1,15 +1,15 @@
 #########################
-QuickBooks for Communards
+QuickBooks for Communes
 #########################
 
-QuickBooks for Communards is a web application built specifically for
+QuickBooks for Communes is a web application built specifically for
 non-Accountant communards, consisting of an Elm frontend and a Haskell API
 server that communicates with QuickBooks Desktop using the `QuickBooks
 WebConnector`_.
 
-The frontend presents Communards with transaction logs for relevant Accounts as
-well as forms for entering their Credit Card purchases, Trip entries, or
-Transfers.
+The frontend will present Communards with transaction logs for relevant
+Accounts as well as forms for entering their Credit Card purchases, Trip
+entries, or Transfers.
 
 This is still in the alpha stage, but under active development.
 
