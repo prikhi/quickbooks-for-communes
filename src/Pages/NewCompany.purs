@@ -143,13 +143,13 @@ render st =
 -- | Render a standard `HH.input` element with a label and error list.
 input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> HH.HTML p (i Unit)
 input label type_ value action errors =
-    HH.label_
+    HH.label errorClass
         [ HH.div_ [ HH.text label ]
         , HH.input $
             [ HP.type_ type_
             , HP.required true
             , HE.onValueChange $ HE.input action
-            ] <> optionalValue <> errorClass
+            ] <> optionalValue
         , if hasError
               then HH.ul [] $ map (\e -> HH.li_ [HH.text e]) errors
               else HH.text ""
