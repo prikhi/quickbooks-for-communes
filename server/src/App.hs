@@ -10,6 +10,7 @@ where
 
 import           Api                            ( API
                                                 , api
+                                                , QWCFile(..)
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( try )
@@ -124,10 +125,10 @@ certRoute = return NoContent
 -- WebConnector not accept the given file. Should try to fix this
 -- somehow... Maybe directly return the rendered & processed ByteString
 -- from this route instead of XML?
-generateAccountSyncQwc :: MonadReader AppEnv m => m (QWCConfig, Text)
+generateAccountSyncQwc :: MonadReader AppEnv m => m QWCFile
 generateAccountSyncQwc = do
     cfg <- asks appConfig
-    return (accountSyncQwcConfig cfg, appAccountSyncUsername cfg)
+    return $ QWCFile (accountSyncQwcConfig cfg, appAccountSyncUsername cfg)
 
 -- | Perform querying/syncing operations for the QuickBooks Accounts.
 accountQuery :: Callback -> AppM CallbackResponse
