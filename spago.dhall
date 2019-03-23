@@ -13,9 +13,12 @@ You can edit this file as you like.
     , "foreign"
     , "generics-rep"
     , "halogen"
+    , "ordered-collections"
+    , "psci-support"
     , "routing"
     , "st"
     , "transformers"
+    , "validation"
     ]
 , packages =
     ./packages.dhall
