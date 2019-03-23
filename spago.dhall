@@ -5,7 +5,10 @@ You can edit this file as you like.
 { name =
     "my-project"
 , dependencies =
-    [ "console"
+    [ "affjax"
+    , "argonaut-codecs"
+    , "argonaut-core"
+    , "console"
     , "effect"
     , "foreign"
     , "generics-rep"
