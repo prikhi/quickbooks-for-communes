@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 module App
     ( app
@@ -11,6 +12,7 @@ where
 import           Api                            ( API
                                                 , api
                                                 , QWCFile(..)
+                                                , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( try )
@@ -20,17 +22,23 @@ import           Control.Monad.Reader           ( MonadReader
                                                 , runReaderT
                                                 , asks
                                                 )
-import           Data.Text                      ( Text
-                                                , pack
+import           Crypto.BCrypt                  ( hashPasswordUsingPolicy
+                                                , slowerBcryptHashingPolicy
                                                 )
+import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
+import           Data.Text.Encoding             ( encodeUtf8
+                                                , decodeUtf8
+                                                )
 import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
 import           Database.Persist.Sql           ( insert_
                                                 , getBy
+                                                , insertUnique
                                                 )
 import           DB.Schema                      ( Session(..)
                                                 , Unique(UniqueTicket)
+                                                , Company(..)
                                                 )
 import           DB.Fields                      ( UUIDField(..)
                                                 , SessionType(..)
@@ -77,8 +85,27 @@ app env = serve api appServer
 
 -- | Join the separate route handlers to create our API.
 server :: ServerT API AppM
-server = generateAccountSyncQwc :<|> certRoute :<|> accountQuery
+server =
+    (newCompany :<|> generateAccountSyncQwc) :<|> (certRoute :<|> accountQuery)
 
+
+-- | TODO: Error throwing on unhashable password & uniqueness violations
+newCompany :: NewCompany -> AppM ()
+newCompany NewCompany {..} = do
+    hashedPassword <-
+        liftIO $ hashPasswordUsingPolicy slowerBcryptHashingPolicy $ encodeUtf8
+            ncPassword
+    case hashedPassword of
+        Just pass -> do
+            _ <- runDB $ insertUnique Company
+                { companyName         = ncName
+                , companyUser         = ncUsername
+                , companyPassword     = decodeUtf8 pass
+                , companyFileName     = Nothing
+                , companyLastSyncTime = Nothing
+                }
+            return ()
+        Nothing -> return ()
 
 -- | The QuickBooks WebConnector Configuration for Account Syncing.
 accountSyncQwcConfig :: AppConfig -> QWCConfig

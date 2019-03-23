@@ -18,8 +18,11 @@ import           Data.Text                      ( pack
 import           Database.Persist.Sql
 import           Database.Persist.TH            ( derivePersistField )
 
--- | Is the WebConnector 'DB.Schema.Session' for syncing accounts or importing approved
--- entries?
+
+-- SESSIONS
+
+-- | Is the WebConnector 'DB.Schema.Session' for syncing accounts or
+-- importing approved entries?
 data SessionType
     = AccountSync
     deriving (Show, Read, Eq)
@@ -41,6 +44,8 @@ data SessionError
 
 $(derivePersistField "SessionError")
 
+
+-- GENERIC
 
 -- | A newtype wrapper for UUIDs so we can add Persistent instances.
 newtype UUIDField = UUIDField { unUUIDField :: UUID }

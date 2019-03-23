@@ -6,6 +6,7 @@
 module Api where
 
 import           Data.Aeson                     ( (.=)
+                                                , FromJSON
                                                 , ToJSON(..)
                                                 , object
                                                 )
@@ -40,7 +41,8 @@ type API =
 
 -- | The API for communication with the Frontend.
 type FrontendAPI =
-    "qwc" :> Get '[JSON, XML] QWCFile
+         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] ()
+    :<|> "qwc" :> Get '[JSON, XML] QWCFile
 
 -- | The API for the communication with the QuickBooks WebConnector.
 type QuickBooksAPI =
@@ -49,6 +51,16 @@ type QuickBooksAPI =
 
 api :: Proxy API
 api = Proxy
+
+
+data NewCompany
+    = NewCompany
+        { ncName :: Text
+        , ncUsername :: Text
+        , ncPassword :: Text
+        } deriving (Read, Show, Generic)
+
+instance FromJSON NewCompany
 
 
 newtype QWCFile = QWCFile (QWCConfig, Text) deriving (Generic)
