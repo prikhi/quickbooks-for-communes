@@ -36,8 +36,15 @@ import           XML                            ( XML
 
 -- | Represents the API presented by our server.
 type API =
-         "qwc" :> Get '[JSON, XML] QWCFile
-    :<|> "cert" :> Get '[PlainText] NoContent
+    FrontendAPI :<|> QuickBooksAPI
+
+-- | The API for communication with the Frontend.
+type FrontendAPI =
+    "qwc" :> Get '[JSON, XML] QWCFile
+
+-- | The API for the communication with the QuickBooks WebConnector.
+type QuickBooksAPI =
+         "cert" :> Get '[PlainText] NoContent
     :<|> "accountSync" :> ReqBody '[SOAP] Callback :> Post '[SOAP] CallbackResponse
 
 api :: Proxy API
