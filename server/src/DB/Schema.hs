@@ -8,8 +8,21 @@
 a migration function for creating/updating the tables.
 
 -}
-module DB.Schema where
+module DB.Schema
+    (
+    -- * Migrations
+      migrateAll
+    -- * Database Types
+    , Session(..)
+    , SessionId
+    , Company(..)
+    , CompanyId
+    , Unique(..)
+    )
+where
 
+import           Data.Text                      ( Text )
+import           Data.Time                      ( UTCTime )
 import           Database.Persist.Sql
 import           Database.Persist.TH
 import           DB.Fields                      ( UUIDField
@@ -25,5 +38,15 @@ Session
     status SessionStatus
     error SessionError Maybe
     UniqueTicket ticket
-    deriving Show
+    deriving Show Read
+
+Company
+    name Text
+    user Text
+    password Text
+    fileName Text Maybe
+    lastSyncTime UTCTime Maybe
+    UniqueCompanyName name
+    UniqueCompanyUser user
+    deriving Show Read
 |]
