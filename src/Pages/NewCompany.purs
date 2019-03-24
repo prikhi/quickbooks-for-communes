@@ -23,7 +23,6 @@ import Web.Event.Event as E
 
 import App
     ( class PreventDefaultSubmit, preventSubmit
-    , class LogToConsole, logShow
     )
 import Server (class Server, newCompanyRequest, NewCompanyData(..))
 import Validation as V
@@ -31,7 +30,6 @@ import Validation as V
 
 component :: forall m i o
     . PreventDefaultSubmit m
-   => LogToConsole m
    => Server m
    => H.Component HH.HTML Query i o m
 component = H.component
@@ -79,7 +77,6 @@ data Query a
 eval :: forall m
     . MonadState State m
    => PreventDefaultSubmit m
-   => LogToConsole m
    => Server m
    => Query ~> m
 eval = case _ of
@@ -98,7 +95,6 @@ eval = case _ of
     SubmitForm ev next -> do
         preventSubmit ev
         st <- H.get
-        logShow st
         case validate st of
             Left errs ->
                 H.modify_ (_ { errors = errs })
@@ -108,7 +104,7 @@ eval = case _ of
                 newCompanyRequest ncd >>= \r -> case r.body of
                     Left errs ->
                         H.modify_ (_ { errors = errs })
-                    Right _ -> 
+                    Right _ ->
                         pure unit
         pure next
   where

@@ -19,7 +19,6 @@ import App
     ( class Navigation, newUrl
     , class PreventDefaultClick, preventClick
     , class PreventDefaultSubmit
-    , class LogToConsole
     )
 import Server (class Server)
 
@@ -72,7 +71,6 @@ component :: forall m
     . PreventDefaultSubmit m
    => PreventDefaultClick m
    => Navigation m
-   => LogToConsole m
    => Server m
    => H.Component HH.HTML Query Unit Void m
 component = H.parentComponent
@@ -110,8 +108,7 @@ eval = case _ of
 
 -- | Render the application.
 render :: forall m
-    . LogToConsole m
-   => PreventDefaultSubmit m
+    . PreventDefaultSubmit m
    => Server m
    => State -> H.ParentHTML Query NewCompany.Query PageSlot m
 render { currentPage } =
@@ -147,8 +144,7 @@ renderHeader currentPage =
 -- | Render the page's component.
 -- | TODO: Use page slots to render
 renderPage :: forall m
-    . LogToConsole m
-   => PreventDefaultSubmit m
+    . PreventDefaultSubmit m
    => Server m
    => Route -> H.ParentHTML Query NewCompany.Query PageSlot m
 renderPage = case _ of
