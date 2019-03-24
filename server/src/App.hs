@@ -92,11 +92,12 @@ server =
 
 
 -- | TODO: Error throwing on unhashable password & uniqueness violations
-newCompany :: NewCompany -> AppM ()
+newCompany :: NewCompany -> AppM QWCFile
 newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     hashedPassword <-
         liftIO $ hashPasswordUsingPolicy slowerBcryptHashingPolicy $ encodeUtf8
             ncPassword
+    cfg <- asks appConfig
     case hashedPassword of
         Nothing -> V.validationError $ V.formError
             "There was an issue securing the password. Please try again."
@@ -106,17 +107,51 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
             existingUser <- userError_ isNothing
                 <$> getBy (UniqueCompanyUser ncUsername)
             let uniquenessTest = (,) <$> existingUser <*> existingName
-            V.whenValid uniquenessTest $ \_ -> insert_ Company
-                { companyName         = ncName
-                , companyUser         = ncUsername
-                , companyPassword     = decodeUtf8 pass
-                , companyFileName     = Nothing
-                , companyLastSyncTime = Nothing
-                }
+            V.whenValid uniquenessTest $ \_ -> do
+                let company :: Company = Company
+                        { companyName         = ncName
+                        , companyUser         = ncUsername
+                        , companyPassword     = decodeUtf8 pass
+                        , companyFileName     = Nothing
+                        , companyLastSyncTime = Nothing
+                        }
+                insert_ company
+                return $ companyQwcConfig cfg company
   where
     nameError = V.validate "name" "A company with this name already exists."
     userError_ =
         V.validate "username" "A company is already using this username."
+
+
+-- | TODO: merge user field into QWCConfig record?
+-- TODO: add appname & api base to appconfig
+companyQwcConfig :: AppConfig -> Company -> QWCFile
+companyQwcConfig cfg c = QWCFile
+    ( QWCConfig
+        { qcAppDescription     = "Syncing Accounts to QBFC"
+        , qcAppDisplayName     = Nothing
+        , qcAppID              = "QBFC_AS"
+        , qcAppName            = "QuickBooks For Communes - " <> companyName c
+        , qcAppSupport         = url "/support/"
+        , qcAppUniqueName      = Nothing
+        , qcAppURL             = url "/accountSync/"
+        , qcCertURL            = Just $ url "/cert/"
+        , qcAuthFlags          = []
+        , qcFileID             = appAccountSyncID cfg
+        , qcIsReadOnly         = False
+        , qcNotify             = False
+        , qcOwnerID            = appAccountSyncID cfg
+        , qcPersonalDataPref   = Nothing
+        , qcQBType             = Financial
+        , qcScheduler          = Just $ EveryMinute $ appAccountSyncInterval cfg
+        , qcStyle              = Nothing
+        , qcUnattendedModePref = Nothing
+        }
+    , companyUser c
+    )
+  where
+    url path = T.concat
+        ["https://", appHostname cfg, ":", pack (show $ appPort cfg), path]
 
 
 -- | The QuickBooks WebConnector Configuration for Account Syncing.

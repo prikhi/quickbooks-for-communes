@@ -43,7 +43,7 @@ type API =
 
 -- | The API for communication with the Frontend.
 type FrontendAPI =
-         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] ()
+         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCFile
     :<|> "qwc" :> Get '[JSON, XML] QWCFile
 
 -- | The API for the communication with the QuickBooks WebConnector.

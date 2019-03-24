@@ -71,12 +71,15 @@ validateOrThrow a = case validator a of
     V.Success a_   -> return a_
 
 -- | Run an action when valid, or throw the 422 error.
-whenValid :: MonadThrow m => V.Validation FormErrors a -> (a -> m ()) -> m ()
+whenValid :: MonadThrow m => V.Validation FormErrors a -> (a -> m b) -> m b
 whenValid validation onSuccess = case validation of
     V.Failure errs -> validationError errs
     V.Success a_   -> onSuccess a_
 
-
+-- | Throw a 422 servant error with a message body containing the errors
+-- encoded as JSON.
+validationError :: MonadThrow m => FormErrors -> m a
+validationError errs = throwM $ err422 { errBody = encode errs }
 
 
 -- | Errors out if the field's text is empty.
@@ -133,12 +136,6 @@ null (FormErrors errMap) =
             (\name errors -> not (T.null name) && L.any (/= "") errors)
             errMap
     in  emptyMap || emptyContents
-
--- | Throw a 422 servant error if the errors are nonempty. The body of the
--- message contains the errors encoded as JSON.
-validationError :: MonadThrow m => FormErrors -> m ()
-validationError errs =
-    if null errs then return () else throwM $ err422 { errBody = encode errs }
 
 -- | Create an error set from a field name and an error message.
 singleton :: FieldName -> Message -> FormErrors
