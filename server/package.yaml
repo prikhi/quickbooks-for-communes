@@ -41,6 +41,7 @@ library:
     dependencies:
         - aeson
         - bcrypt
+        - unordered-containers
         - resource-pool
         - exceptions
         - http-media
@@ -55,6 +56,7 @@ library:
         - streaming-commons
         - time
         - unliftio-core
+        - validation
         - wai
         - xml-conduit
         - xml-types

@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 module Api where
 
@@ -31,6 +32,7 @@ import           Servant.API                    ( (:>)
                                                 )
 import           SOAP                           ( SOAP )
 import           Text.XML.Generator             ( xrender )
+import qualified Validation                    as V
 import           XML                            ( XML
                                                 , ToXML(..)
                                                 )
@@ -61,6 +63,13 @@ data NewCompany
         } deriving (Read, Show, Generic)
 
 instance FromJSON NewCompany
+
+instance V.AppValidation NewCompany where
+    validator NewCompany {..} =
+        NewCompany
+            <$> V.isNonEmpty "name" ncName
+            <*> V.isNonEmpty "username" ncUsername
+            <*> V.isNonEmpty "password" ncPassword
 
 
 newtype QWCFile = QWCFile (QWCConfig, Text) deriving (Generic)

@@ -16,6 +16,7 @@ import           Api                            ( API
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( try )
+import           Control.Monad                  ( (>=>) )
 import           Control.Monad.IO.Class         ( liftIO )
 import           Control.Monad.Except           ( ExceptT(..) )
 import           Control.Monad.Reader           ( MonadReader
@@ -25,6 +26,7 @@ import           Control.Monad.Reader           ( MonadReader
 import           Crypto.BCrypt                  ( hashPasswordUsingPolicy
                                                 , slowerBcryptHashingPolicy
                                                 )
+import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( encodeUtf8
@@ -34,10 +36,9 @@ import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
 import           Database.Persist.Sql           ( insert_
                                                 , getBy
-                                                , insertUnique
                                                 )
 import           DB.Schema                      ( Session(..)
-                                                , Unique(UniqueTicket)
+                                                , Unique(..)
                                                 , Company(..)
                                                 )
 import           DB.Fields                      ( UUIDField(..)
@@ -70,6 +71,7 @@ import           Types                          ( AppEnv(..)
                                                 , AppSqlM
                                                 , runDB
                                                 )
+import qualified Validation                    as V
 
 -- | The API server as a WAI Application.
 app :: AppEnv -> Application
@@ -91,21 +93,31 @@ server =
 
 -- | TODO: Error throwing on unhashable password & uniqueness violations
 newCompany :: NewCompany -> AppM ()
-newCompany NewCompany {..} = do
+newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     hashedPassword <-
         liftIO $ hashPasswordUsingPolicy slowerBcryptHashingPolicy $ encodeUtf8
             ncPassword
     case hashedPassword of
-        Just pass -> do
-            _ <- runDB $ insertUnique Company
+        Nothing -> V.validationError $ V.formError
+            "There was an issue securing the password. Please try again."
+        Just pass -> runDB $ do
+            existingName <- nameError isNothing
+                <$> getBy (UniqueCompanyName ncName)
+            existingUser <- userError_ isNothing
+                <$> getBy (UniqueCompanyUser ncUsername)
+            let uniquenessTest = (,) <$> existingUser <*> existingName
+            V.whenValid uniquenessTest $ \_ -> insert_ Company
                 { companyName         = ncName
                 , companyUser         = ncUsername
                 , companyPassword     = decodeUtf8 pass
                 , companyFileName     = Nothing
                 , companyLastSyncTime = Nothing
                 }
-            return ()
-        Nothing -> return ()
+  where
+    nameError = V.validate "name" "A company with this name already exists."
+    userError_ =
+        V.validate "username" "A company is already using this username."
+
 
 -- | The QuickBooks WebConnector Configuration for Account Syncing.
 accountSyncQwcConfig :: AppConfig -> QWCConfig
@@ -152,6 +164,8 @@ certRoute = return NoContent
 -- WebConnector not accept the given file. Should try to fix this
 -- somehow... Maybe directly return the rendered & processed ByteString
 -- from this route instead of XML?
+--
+-- TODO: Take a CompanyId as a parameter & correctly generate their file!
 generateAccountSyncQwc :: MonadReader AppEnv m => m QWCFile
 generateAccountSyncQwc = do
     cfg <- asks appConfig
