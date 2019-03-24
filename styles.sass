@@ -10,6 +10,7 @@ $gray-white: #F4F5F7
 
 $body-text: $dark
 $body-bg: $gray-white
+$border-radius: 5px
 
 $nav-text: $body-bg
 $nav-bg: $body-text
@@ -57,7 +58,7 @@ label
     line-height: 1
     font-size: 1rem
     border: 1px solid $body-text
-    border-radius: 3px
+    border-radius: $border-radius
     padding: 0.35em 0.5em
     background-color: $input-bg
     // Transition the focus highlights
@@ -120,6 +121,14 @@ label
       margin-left: 0
       text-align: left
 
+/* Show the general form errors in a box */
+form > p.form-errors
+  color: $input-error
+  background-color: darken($body-bg, 10%)
+  padding: 0.75em 1em
+  border: solid 1px $input-error
+  border-radius: $border-radius
+
 
 /* Color and enlarge buttons */
 button.primary
@@ -128,7 +137,7 @@ button.primary
   background-color: $button-primary
   padding: 0.5em
   border: $body-text solid 1px
-  border-radius: 5px
+  border-radius: $border-radius
   transition: 0.3s background-color
   cursor: pointer
 

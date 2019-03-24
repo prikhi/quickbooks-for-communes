@@ -14,10 +14,7 @@ import Prelude
 import Control.Monad.State (class MonadState)
 import Data.Either (Either(..))
 import Data.Array as Array
-import Data.Maybe (Maybe(..), fromMaybe)
-import Data.Map (Map)
-import Data.Map as M
-import Data.Validation.Semigroup as V
+import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -29,6 +26,7 @@ import App
     , class LogToConsole, logShow
     )
 import Server (class Server, newCompanyRequest, NewCompanyData(..))
+import Validation as V
 
 
 component :: forall m i o
@@ -48,7 +46,7 @@ type State =
     { name :: Maybe String
     , username :: Maybe String
     , password :: Maybe String
-    , errors :: FormErrors
+    , errors :: V.FormErrors
     }
 
 -- | Start the form as blank.
@@ -57,15 +55,15 @@ initial =
     { name: Nothing
     , username: Nothing
     , password: Nothing
-    , errors: M.empty
+    , errors: V.empty
     }
 
-validate :: State -> Either FormErrors NewCompanyData
+validate :: State -> Either V.FormErrors NewCompanyData
 validate st = V.toEither <<< map NewCompany $
         { name: _, user: _, password: _ }
-            <$> validateNonEmpty "name" st.name
-            <*> validateNonEmpty "username" st.username
-            <*> validateNonEmpty "password" st.password
+            <$> V.validateNonEmpty "name" st.name
+            <*> V.validateNonEmpty "username" st.username
+            <*> V.validateNonEmpty "password" st.password
 
 
 -- | Form input & submission events.
@@ -87,15 +85,15 @@ eval :: forall m
 eval = case _ of
     InputName str next -> do
         H.modify_ (_ { name = Just str })
-        revalidate_ "name"
+        revalidate "name"
         pure next
     InputUser str next -> do
         H.modify_ (_ { username = Just str })
-        revalidate_ "username"
+        revalidate "username"
         pure next
     InputPass str next -> do
         H.modify_ (_ { password = Just str })
-        revalidate_ "password"
+        revalidate "password"
         pure next
     SubmitForm ev next -> do
         preventSubmit ev
@@ -105,14 +103,16 @@ eval = case _ of
             Left errs ->
                 H.modify_ (_ { errors = errs })
             Right ncd -> do
-                H.modify_ (_ { errors = empty })
+                H.modify_ (_ { errors = V.empty })
                 -- TODO: Handle some response, like company id or the qwc file.
-                -- TODO: Handle submission errors, through status code?
-                --       Or request decoder?
-                void $ newCompanyRequest ncd
+                newCompanyRequest ncd >>= \r -> case r.body of
+                    Left errs ->
+                        H.modify_ (_ { errors = errs })
+                    Right _ -> 
+                        pure unit
         pure next
   where
-    revalidate_ = revalidate validate
+    revalidate = V.revalidate validate
 
 
 -- | Render the New Company page.
@@ -130,9 +130,9 @@ render st =
                 \company in QuickBooks, and add the config to the WebConnector to \
                 \initialize the data."
             ]
-        , HH.p_ [ HH.text "TODO: Validate & post form to backend on submit." ]
         , HH.form [ HE.onSubmit $ HE.input SubmitForm ]
-            [ input "Company Name" HP.InputText st.name InputName $ errors "name"
+            [ formErrors $ V.getFormErrors st.errors
+            , input "Company Name" HP.InputText st.name InputName $ errors "name"
             , input "Username" HP.InputText st.username InputUser $ errors "username"
             , input "Password" HP.InputPassword st.password InputPass $ errors "password"
             , submitButton "Add Company"
@@ -140,11 +140,23 @@ render st =
         ]
   where
     liText t = HH.li_ [ HH.text t ]
-    errors field = getFieldErrors field st.errors
+    errors field = V.getFieldErrors field st.errors
 
 
 
 -- Forms - TODO: stick in module
+
+-- | Render the general errors for a form.
+formErrors :: forall p i. Array String -> HH.HTML p i
+formErrors errs =
+    if not $ Array.null errs then
+        HH.p [HP.class_ $ H.ClassName "form-errors"]
+            [ HH.text "We encountered the following errors when processing \
+                \your request. Please address them and try re-submitting the form:"
+            , HH.ul_ $ map (\err -> HH.li_ [HH.text err]) errs
+            ]
+    else
+        HH.text ""
 
 -- | Render a standard `HH.input` element with a label and error list.
 input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> HH.HTML p (i Unit)
@@ -157,7 +169,7 @@ input label type_ value action errors =
             , HE.onValueChange $ HE.input action
             ] <> optionalValue
         , if hasError
-              then HH.ul [] $ map (\e -> HH.li_ [HH.text e]) errors
+              then HH.ul_ $ map (\e -> HH.li_ [HH.text e]) errors
               else HH.text ""
         ]
   where
@@ -190,67 +202,3 @@ submitButton label =
     HH.button
         [ HP.class_ (H.ClassName "primary"), HP.type_ HP.ButtonSubmit ]
         [ HH.text label ]
-
-
-
--- Validation - TODO: stick in module
-
--- | Each Field can have multiple error message.
-type FormErrors = Map String (Array String)
-
--- | A record is WithErrors if it contains FormErrors in it's `errors` field.
-type WithErrors s = { errors :: FormErrors | s }
-
--- | Validation results in some errors or the validated type.
-type ValidationResult a = Either FormErrors a
-
--- | A validator transforms an input type into the resuls of a validation.
-type Validator a b = (->) a (ValidationResult b)
-
-
--- | Empty FormErrors means no errors!
-empty :: FormErrors
-empty = M.empty
-
--- | Get the errors for a field.
-getFieldErrors :: String -> FormErrors -> Array String
-getFieldErrors field =
-    M.lookup field >>> fromMaybe []
-
--- | Return a single error from a field validation.
-singleError :: forall a. String -> String -> V.V FormErrors a
-singleError field message =
-    V.invalid $ M.singleton field [message]
-
-
--- | Ensure a Maybe String has a non-empty value present.
-validateNonEmpty :: String -> Maybe String -> V.V FormErrors String
-validateNonEmpty field = case _ of
-    Nothing -> singleError field "A value is required."
-    Just "" -> singleError field "A value is required."
-    Just s  -> pure s
-
--- | If the form was invalid, recheck the validation & update the field's
--- | error status.
-revalidate :: forall m a b
-    . MonadState (WithErrors a) m
-   => Validator (WithErrors a) b -> String -> m Unit
-revalidate validator field = do
-    st <- H.get
-    let newErrors = case validator st of
-            Right _ ->
-                (_ { errors = empty })
-            Left errs -> \s ->
-                if not $ M.isEmpty s.errors
-                then case getFieldErrors field errs of
-                    [] ->
-                        s { errors = M.delete field s.errors }
-                    _ ->
-                        s { errors = M.unionWith mergeUnique s.errors errs }
-                else
-                    s
-    H.modify_ newErrors
-
--- | Merge the arrays, ensuring all resulting elements are unique.
-mergeUnique :: forall a. Ord a => Array a -> Array a -> Array a
-mergeUnique arr1 arr2 = Array.nub $ arr1 <> arr2

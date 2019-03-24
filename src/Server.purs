@@ -2,18 +2,21 @@ module Server where
 
 import Prelude
 
-import Affjax (Response, post_)
+import Affjax (Response, post)
 import Affjax.RequestBody as Request
-import Effect.Aff (Aff)
-import Effect.Aff.Class (liftAff)
+import Affjax.ResponseFormat as Response
 import Data.Argonaut.Core (jsonEmptyObject)
 import Data.Argonaut.Encode ((:=), (~>), class EncodeJson, encodeJson)
+import Data.Either (Either)
+import Effect.Aff (Aff)
+import Effect.Aff.Class (liftAff)
 import Halogen as H
 
 import App (AppM)
+import Validation as V
 
 class Monad m <= Server m where
-    newCompanyRequest :: NewCompanyData -> m (Response Unit)
+    newCompanyRequest :: NewCompanyData -> m (Response (Either V.FormErrors Unit))
 
 instance serverApp :: Server AppM where
     newCompanyRequest = liftAff <<< ncRequest
@@ -23,10 +26,12 @@ instance serverHalogen :: Server m => Server (H.HalogenM s f g o p m) where
 
 -- | Handle NewCompany POST requests.
 -- TODO: abstract out Endpoint type when we have multiple server routes
-ncRequest :: NewCompanyData -> Aff (Response Unit)
+ncRequest
+    :: NewCompanyData
+    -> Aff (Response (Either V.FormErrors Unit))
 ncRequest ncData =
-    post_ "/api/new-company/" $ Request.json $ encodeJson ncData
-
+    V.handleResponseErrors
+        <$> post Response.string "/api/new-company/" (Request.json $ encodeJson ncData)
 
 data NewCompanyData
     = NewCompany
@@ -37,7 +42,7 @@ data NewCompanyData
 
 instance encodeNewCompany :: EncodeJson NewCompanyData where
     encodeJson (NewCompany c) =
-               "ncName" := c.name
-            ~> "ncUsername" := c.user
-            ~> "ncPassword" := c.password
-            ~> jsonEmptyObject
+           "ncName" := c.name
+        ~> "ncUsername" := c.user
+        ~> "ncPassword" := c.password
+        ~> jsonEmptyObject
