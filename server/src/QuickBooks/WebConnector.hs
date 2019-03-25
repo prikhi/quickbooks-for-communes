@@ -215,6 +215,8 @@ data Callback
     | ReceiveResponseXML
         UUID                -- ^ The session ticket
         Response            -- ^ The parsed qbXML response
+    | CloseConnection
+        UUID                -- ^ The session ticket
     deriving (Show)
 
 instance FromXML Callback where
@@ -224,6 +226,7 @@ instance FromXML Callback where
         , parseAuthenticate
         , parseInitialSendRequestXML
         , parseReceiveResponseXML
+        , parseCloseConnection
         , parseError "Unsupported WebConnector Callback"
         ]
 
@@ -274,6 +277,12 @@ parseReceiveResponseXML = matchName (qbName "receiveResponseXML") $ do
                                                                  fromXML
     return $ ReceiveResponseXML ticket resp
 
+parseCloseConnection :: Parser Callback
+parseCloseConnection =
+    matchName (qbName "closeConnection")
+        $   CloseConnection
+        <$> find (qbName "ticket") parseUUID
+
 -- | Build an 'Element' name in the Intuit Developer 'Namespace'.
 qbName :: Text -> Name
 qbName = withNamespace "http://developer.intuit.com/"
@@ -305,6 +314,7 @@ data CallbackResponse
     -- ^ Send the 0-100 percentage complete or a negative number as an
     -- error.
     -- TODO: Refactor Integer into InProgress, Complete, or Error types.
+    | CloseConnectionResp Text
     deriving (Show)
 
 instance ToXML CallbackResponse where
@@ -332,6 +342,10 @@ instance ToXML CallbackResponse where
             xelemQ qbNamespace "receiveResponseXMLResponse" $
                 xelemQ qbNamespace "receiveResponseXMLResult" $
                     xtext $ showT progress
+        CloseConnectionResp message ->
+            xelemQ qbNamespace "closeConnectionResponse" $
+                xelemQ qbNamespace "closeConnectionResult" $
+                    xtext message
 
 
 -- | Render a Text list as a QuickBooks String Array.

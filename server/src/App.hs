@@ -240,6 +240,20 @@ accountQuery r = case r of
         -- Test equality by edit sequence?
         liftIO $ print resp
         return $ ReceiveResponseXMLResp 100
+    CloseConnection ticket ->
+        runDB $ getBy (UniqueTicket $ UUIDField ticket) >>= \case
+            Nothing ->
+                return $ CloseConnectionResp "Unable to identify session."
+            Just (Entity sessionId session) -> do
+                update sessionId [SessionStatus_ =. Completed]
+                case sessionError session of
+                    Nothing -> return
+                        $ CloseConnectionResp "Sync Completed Successfully"
+                    Just err ->
+                        return
+                            $  CloseConnectionResp
+                            $  "Ran Into Error: "
+                            <> pack (show err)
   where
     newSession :: AppM (UUID, SessionId)
     newSession = runDB $ do
