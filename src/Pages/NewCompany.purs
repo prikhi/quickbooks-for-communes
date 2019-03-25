@@ -29,17 +29,18 @@ import Server (class Server, newCompanyRequest, NewCompanyData(..), QWCFile(..))
 import Validation as V
 
 
--- TODO: revoke url on component destroy
 component :: forall m i o
     . PreventDefaultSubmit m
    => Server m
    => ManageObjectURLs m
    => H.Component HH.HTML Query i o m
-component = H.component
+component = H.lifecycleComponent
     { initialState: const initial
     , render
     , eval
     , receiver: const Nothing
+    , initializer: Nothing
+    , finalizer: Just $ Destroy unit
     }
 
 -- | The form data.
@@ -76,6 +77,8 @@ data Query a
     | InputPass String a
     | SubmitForm E.Event a
     -- ^ Log the current form fields to the console.
+    | Destroy a
+    -- ^ Revoke the objectURL.
 
 
 -- | Update & submit the form.
@@ -111,15 +114,22 @@ eval = case _ of
                         H.modify_ (_ { errors = errs })
                     Right (QWCFile fileBlob) -> do
                         qwcURL <- createObjectURL fileBlob
-                        case st.objectURL of
-                            Nothing ->
-                                pure unit
-                            Just objectURL ->
-                                revokeObjectURL objectURL
+                        revoke
                         H.modify_ (_ { objectURL = Just qwcURL })
         pure next
+    Destroy next ->
+        revoke *> pure next
   where
+    -- | Re-validate the form & update the errors.
+    revalidate :: forall n. MonadState State n => String -> n Unit
     revalidate = V.revalidate validate
+    -- | Revoke the objectURL if one is stored.
+    revoke :: forall n. MonadState State n => ManageObjectURLs n => n Unit
+    revoke = H.get >>= _.objectURL >>> case _ of
+        Nothing ->
+            pure unit
+        Just objectURL ->
+            revokeObjectURL objectURL
 
 
 -- | Render the New Company page.
