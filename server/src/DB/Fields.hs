@@ -34,6 +34,7 @@ data SessionStatus
     = Initiated
     | Authenticated
     | RequestedAccounts
+    | HandlingConnectionError Integer
     | Completed
     deriving (Show, Read, Eq)
 
@@ -42,6 +43,7 @@ $(derivePersistField "SessionStatus")
 -- | Possible errors during WebConnector 'DB.Schema.Session' processing.
 data SessionError
     = InvalidAuthentication
+    | QuickBooksConnectionError
     deriving (Show, Read, Eq)
 
 $(derivePersistField "SessionError")

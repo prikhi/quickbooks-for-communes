@@ -217,6 +217,10 @@ data Callback
         Response            -- ^ The parsed qbXML response
     | CloseConnection
         UUID                -- ^ The session ticket
+    | ConnectionError
+        UUID                -- ^ The session ticket
+        Text                -- ^ The @HRESULT@ hex-string thrown by the WebConnector.
+        Text                -- ^ The error message for the HRESULT.
     deriving (Show)
 
 instance FromXML Callback where
@@ -227,6 +231,7 @@ instance FromXML Callback where
         , parseInitialSendRequestXML
         , parseReceiveResponseXML
         , parseCloseConnection
+        , parseConnectionError
         , parseError "Unsupported WebConnector Callback"
         ]
 
@@ -283,6 +288,13 @@ parseCloseConnection =
         $   CloseConnection
         <$> find (qbName "ticket") parseUUID
 
+parseConnectionError :: Parser Callback
+parseConnectionError = matchName (qbName "connectionError") $ do
+    ticket  <- find (qbName "ticket") parseUUID
+    hresult <- find (qbName "hresult") parseContent
+    message <- find (qbName "message") parseContent
+    return $ ConnectionError ticket hresult message
+
 -- | Build an 'Element' name in the Intuit Developer 'Namespace'.
 qbName :: Text -> Name
 qbName = withNamespace "http://developer.intuit.com/"
@@ -315,6 +327,11 @@ data CallbackResponse
     -- error.
     -- TODO: Refactor Integer into InProgress, Complete, or Error types.
     | CloseConnectionResp Text
+    -- ^ Send the status text to show in the WebConnector UI.
+    | ConnectionErrorResp Text
+    -- ^ Send "done" to close the connection, or any other text as the path
+    -- to a company file to open.
+    -- TODO: Refactor Text -> Done | TryCompanyFile
     deriving (Show)
 
 instance ToXML CallbackResponse where
@@ -345,6 +362,10 @@ instance ToXML CallbackResponse where
         CloseConnectionResp message ->
             xelemQ qbNamespace "closeConnectionResponse" $
                 xelemQ qbNamespace "closeConnectionResult" $
+                    xtext message
+        ConnectionErrorResp message ->
+            xelemQ qbNamespace "connectionErrorResponse" $
+                xelemQ qbNamespace "connectionErrorResult" $
                     xtext message
 
 

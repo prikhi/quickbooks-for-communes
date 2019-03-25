@@ -225,7 +225,7 @@ accountQuery r = case r of
             $   validateTicket ticket
             >>= \case
                     Nothing -> return $ SendRequestXMLResp $ Left ()
-                    Just (sessionId, Entity companyId company) -> do
+                    Just (Entity sessionId _, Entity companyId company) -> do
                         when (noStoredFileName company) $ update
                             companyId
                             [CompanyFileName =. Just filename]
@@ -240,20 +240,35 @@ accountQuery r = case r of
         -- Test equality by edit sequence?
         liftIO $ print resp
         return $ ReceiveResponseXMLResp 100
-    CloseConnection ticket ->
-        runDB $ getBy (UniqueTicket $ UUIDField ticket) >>= \case
-            Nothing ->
-                return $ CloseConnectionResp "Unable to identify session."
-            Just (Entity sessionId session) -> do
-                update sessionId [SessionStatus_ =. Completed]
-                case sessionError session of
-                    Nothing -> return
-                        $ CloseConnectionResp "Sync Completed Successfully"
-                    Just err ->
-                        return
-                            $  CloseConnectionResp
-                            $  "Ran Into Error: "
-                            <> pack (show err)
+    CloseConnection ticket -> runDB $ getSession ticket >>= \case
+        Nothing -> return $ CloseConnectionResp "Unable to identify session."
+        Just (Entity sessionId session) -> do
+            update sessionId [SessionStatus_ =. Completed]
+            case sessionError session of
+                Nothing ->
+                    return $ CloseConnectionResp "Sync Completed Successfully"
+                Just err ->
+                    return $ CloseConnectionResp $ "Ran Into Error: " <> pack
+                        (show err)
+    ConnectionError ticket _ _ -> runDB $ validateTicket ticket >>= \case
+        Nothing -> return $ ConnectionErrorResp "done"
+        Just (Entity sessionId session, Entity _ company) -> do
+            attemptNumber <- case sessionStatus_ session of
+                HandlingConnectionError i ->
+                    update
+                            sessionId
+                            [SessionStatus_ =. HandlingConnectionError (i + 1)]
+                        >> return (i + 1)
+                _ ->
+                    update sessionId
+                           [SessionStatus_ =. HandlingConnectionError 1]
+                        >> return 1
+            if attemptNumber > 2
+                then abortConnectionRetrying sessionId
+                else
+                    maybe (abortConnectionRetrying sessionId)
+                          (return . ConnectionErrorResp)
+                        $ companyFileName company
   where
     newSession :: AppM (UUID, SessionId)
     newSession = runDB $ do
@@ -271,16 +286,30 @@ accountQuery r = case r of
         validatePassword (encodeUtf8 companyPassword)
                          (encodeUtf8 passwordAttempt)
 
-    validateTicket :: UUID -> AppSqlM (Maybe (SessionId, Entity Company))
-    validateTicket ticket = getBy (UniqueTicket $ UUIDField ticket) >>= \case
-        Nothing                         -> return Nothing
-        Just (Entity sessionId session) -> case sessionCompany session of
+    getSession :: UUID -> AppSqlM (Maybe (Entity Session))
+    getSession = getBy . UniqueTicket . UUIDField
+
+    validateTicket :: UUID -> AppSqlM (Maybe (Entity Session, Entity Company))
+    validateTicket ticket = getSession ticket >>= \case
+        Nothing                   -> return Nothing
+        Just s@(Entity _ session) -> case sessionCompany session of
             Nothing -> return Nothing
             Just companyId ->
-                fmap (\c -> (sessionId, Entity companyId c)) <$> get companyId
+                fmap (\c -> (s, Entity companyId c)) <$> get companyId
 
     noStoredFileName :: Company -> Bool
     noStoredFileName = maybe True T.null . companyFileName
+
+    -- Stop retrying the quickbooks connection in the ConnectionError
+    -- callback.
+    abortConnectionRetrying :: SessionId -> AppSqlM CallbackResponse
+    abortConnectionRetrying sessionId =
+        update
+                sessionId
+                [ SessionError =. Just QuickBooksConnectionError
+                , SessionStatus_ =. Completed
+                ]
+            >> return (ConnectionErrorResp "done")
 
 
 
