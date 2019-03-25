@@ -26,6 +26,7 @@ import           Control.Exception.Safe         ( Exception
                                                 )
 import           Control.Monad                  ( (>=>)
                                                 , unless
+                                                , when
                                                 )
 import           Control.Monad.IO.Class         ( MonadIO
                                                 , liftIO
@@ -219,15 +220,23 @@ accountQuery r = case r of
                 Nothing       -> return ValidUser
                 Just filename -> return $ CompanyFile filename
         return $ AuthenticateResp ticket authResult Nothing Nothing
-    InitialSendRequestXML{} -> do
-        -- TODO:
-        --  * Error out if ticket has no company
-        --  * Update company file name if Nothing.
-        --  * Build query w/ modified time as globalLastSyncTime
-        liftIO $ print r
-        return $ SendRequestXMLResp AccountQuery
+    InitialSendRequestXML ticket _ _ _ filename _ _ _ ->
+        runDB
+            $   validateTicket ticket
+            >>= \case
+                    Nothing -> return $ SendRequestXMLResp $ Left ()
+                    Just (sessionId, Entity companyId company) -> do
+                        when (noStoredFileName company) $ update
+                            companyId
+                            [CompanyFileName =. Just filename]
+                        update sessionId [SessionStatus_ =. RequestedAccounts]
+                        -- TODO: Build query w/ filter for modified time
+                        -- greater than companyLastSyncTime(if not-nothing)
+                        liftIO $ print r
+                        return $ SendRequestXMLResp $ Right AccountQuery
     ReceiveResponseXML _ resp -> do
         -- TODO: Update all Accounts for the company.
+        -- save last sync time
         -- Test equality by edit sequence?
         liftIO $ print resp
         return $ ReceiveResponseXMLResp 100
@@ -242,9 +251,24 @@ accountQuery r = case r of
             , sessionError   = Nothing
             , sessionCompany = Nothing
             }
+
+    isValidPassword :: Company -> T.Text -> Bool
     isValidPassword Company { companyPassword } passwordAttempt =
         validatePassword (encodeUtf8 companyPassword)
                          (encodeUtf8 passwordAttempt)
+
+    validateTicket :: UUID -> AppSqlM (Maybe (SessionId, Entity Company))
+    validateTicket ticket = getBy (UniqueTicket $ UUIDField ticket) >>= \case
+        Nothing                         -> return Nothing
+        Just (Entity sessionId session) -> case sessionCompany session of
+            Nothing -> return Nothing
+            Just companyId ->
+                fmap (\c -> (sessionId, Entity companyId c)) <$> get companyId
+
+    noStoredFileName :: Company -> Bool
+    noStoredFileName = maybe True T.null . companyFileName
+
+
 
 -- | Signals authentication failure during QuickBooks syncing.
 data AuthFailure

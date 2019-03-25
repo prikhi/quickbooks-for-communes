@@ -33,6 +33,7 @@ $(derivePersistField "SessionType")
 data SessionStatus
     = Initiated
     | Authenticated
+    | RequestedAccounts
     | Completed
     deriving (Show, Read, Eq)
 

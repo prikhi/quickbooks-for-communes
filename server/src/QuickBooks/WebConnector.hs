@@ -299,7 +299,7 @@ data CallbackResponse
     -- TODO: Refactor Text into Type w/ valid states(Accept, Warn, Error)
     | AuthenticateResp UUID AuthResult (Maybe PostponeMinutes) (Maybe AutorunMinutes)
     -- ^ Return a session ticket & the authentication result
-    | SendRequestXMLResp Request
+    | SendRequestXMLResp (Either () Request)
     -- ^ Send the given qbXML request
     | ReceiveResponseXMLResp Integer
     -- ^ Send the 0-100 percentage complete or a negative number as an
@@ -327,7 +327,7 @@ instance ToXML CallbackResponse where
         SendRequestXMLResp req ->
             xelemQ qbNamespace "sendRequestXMLResponse" $
                 xelemQ qbNamespace "sendRequestXMLResult" $
-                    xtext $ buildRequest req
+                    xtext $ either (const "") buildRequest req
         ReceiveResponseXMLResp progress ->
             xelemQ qbNamespace "receiveResponseXMLResponse" $
                 xelemQ qbNamespace "receiveResponseXMLResult" $
