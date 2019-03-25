@@ -167,24 +167,24 @@ render st =
                 [ HH.text "The last step in setting up a new company is to manually \
                     \run the first sync manually. To do this, you need to:"
                 ]
-            , HH.ol_
-                [ liText "Ensure the QuickBooks Web Connector is running."
-                , liText "Un-check all the Auto-Run checkboxes."
-                , liText "Open the Company's File in QuickBooks."
-                , liText "Save your Company's Web Connector Configuration(qwc) \
+            , HH.ol_ $ map liText
+                [ "Ensure the QuickBooks Web Connector is running."
+                , "Un-check all the Auto-Run checkboxes."
+                , "Open the Company's File in QuickBooks."
+                , "Save your Company's Web Connector Configuration(qwc) \
                     \File using the button below."
-                , liText "Open the file in QuickBooks Web Connector using the\
-                    \ \"Add an Application\" button."
-                , liText "Authorize the application in the Web Connector popup."
-                , liText "Authorze the application in QuickBooks popup. Select \
-                    \the option to allow access even when QuickBooks is not running."
-                , liText "Make sure only the new application is selected in the \
+                , "Open the file in QuickBooks Web Connector using the \"Add \
+                    \an Application\" button."
+                , "Authorize the application in the Web Connector popup."
+                , "Authorze the application in QuickBooks popup. Select the \
+                    \option to allow access even when QuickBooks is not running."
+                , "Make sure only the new application is selected in the \
                     \Web Connector list."
-                , liText "In the popup, enter the password you used when creating \
+                , "In the popup, enter the password you used when creating \
                     \the company. Choose to save the password when prompted."
-                , liText "Click the \"Update Selected\" button in the Web Connector."
-                , liText "Re-check any of the Auto-Run checkboxes you unchecked earlier."
-                , liText "The new company should now be available when creating entries."
+                , "Click the \"Update Selected\" button in the Web Connector."
+                , "Re-check any of the Auto-Run checkboxes you unchecked earlier."
+                , "The new company should now be available when creating entries."
                 ]
             , downloadButton (fromMaybe "sync" st.name <> ".qwc")
                 "Download Your QWC File" objectURL
