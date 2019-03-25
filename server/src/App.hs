@@ -123,10 +123,8 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
         Nothing -> V.validationError $ V.formError
             "There was an issue securing the password. Please try again."
         Just pass -> runDB $ do
-            existingName <- nameError isNothing
-                <$> getBy (UniqueCompanyName ncName)
-            existingUser <- userError_ isNothing
-                <$> getBy (UniqueCompanyUser ncUsername)
+            existingName <- nameError <$> getBy (UniqueCompanyName ncName)
+            existingUser <- userError_ <$> getBy (UniqueCompanyUser ncUsername)
             let uniquenessTest = (,) <$> existingUser <*> existingName
             V.whenValid uniquenessTest $ \_ -> do
                 let company :: Company = Company
@@ -139,9 +137,11 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
                 insert_ company
                 return $ companyQwcConfig cfg company
   where
-    nameError = V.validate "name" "A company with this name already exists."
-    userError_ =
-        V.validate "username" "A company is already using this username."
+    nameError =
+        V.validate "name" "A company with this name already exists." isNothing
+    userError_ = V.validate "username"
+                            "A company is already using this username."
+                            isNothing
     hashPassword :: MonadIO m => ByteString -> m (Maybe T.Text)
     hashPassword pass = fmap decodeUtf8
         <$> liftIO (hashPasswordUsingPolicy slowerBcryptHashingPolicy pass)
