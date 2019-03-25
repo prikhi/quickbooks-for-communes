@@ -32,6 +32,7 @@ $(derivePersistField "SessionType")
 -- | The status of a WebConnector 'DB.Schema.Session'.
 data SessionStatus
     = Initiated
+    | Authenticated
     | Completed
     deriving (Show, Read, Eq)
 

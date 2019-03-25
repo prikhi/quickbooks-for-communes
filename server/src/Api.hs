@@ -15,6 +15,7 @@ import           Data.ByteString                ( ByteString )
 import           Data.Proxy                     ( Proxy(..) )
 import           Data.Text                      ( Text )
 import           Data.Text.Encoding             ( decodeUtf8 )
+import           DB.Schema                      ( CompanyId )
 import           GHC.Generics                   ( Generic )
 import           QuickBooks.WebConnector        ( QWCConfig
                                                 , Callback
@@ -25,6 +26,7 @@ import           Servant.API                    ( (:>)
                                                 , (:<|>)
                                                 , Get
                                                 , Post
+                                                , Capture
                                                 , ReqBody
                                                 , PlainText
                                                 , JSON
@@ -44,7 +46,7 @@ type API =
 -- | The API for communication with the Frontend.
 type FrontendAPI =
          "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCFile
-    :<|> "qwc" :> Get '[JSON, XML] QWCFile
+    :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCFile
 
 -- | The API for the communication with the QuickBooks WebConnector.
 type QuickBooksAPI =

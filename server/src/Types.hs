@@ -8,7 +8,9 @@ module Types
 where
 
 import           Config                         ( AppConfig(..) )
-import           Control.Exception.Safe         ( MonadThrow )
+import           Control.Exception.Safe         ( MonadThrow
+                                                , MonadCatch
+                                                )
 import           Control.Monad.IO.Class         ( MonadIO )
 import           Control.Monad.IO.Unlift        ( MonadUnliftIO(..)
                                                 , wrappedWithRunInIO
@@ -34,7 +36,7 @@ data AppEnv
 -- | The monadic stack the handler routes run under.
 newtype AppM a
     = AppM { fromAppM :: ReaderT AppEnv IO a }
-    deriving (Functor, Applicative, Monad, MonadThrow, MonadIO, MonadReader AppEnv)
+    deriving (Functor, Applicative, Monad, MonadThrow, MonadCatch, MonadIO, MonadReader AppEnv)
 
 -- | Wrap/unwrap the ReaderT instance with 'AppM'/'fromAppM' calls.
 instance MonadUnliftIO AppM where

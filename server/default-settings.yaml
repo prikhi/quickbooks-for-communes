@@ -4,7 +4,7 @@
 #
 # Note: You must still define the following keys:
 #
-#   * account-sync.uuid : UUID
+#   * account-sync.id : UUID
 
 host: "*"
 hostname: "localhost"
@@ -25,5 +25,4 @@ tls:
     cert-chain-files: []
 
 account-sync:
-    username: "account-sync"
     interval: 10

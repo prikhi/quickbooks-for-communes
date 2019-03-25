@@ -1,7 +1,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeOperators #-}
 module App
     ( app
@@ -15,17 +18,27 @@ import           Api                            ( API
                                                 , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
-import           Control.Exception.Safe         ( try )
-import           Control.Monad                  ( (>=>) )
-import           Control.Monad.IO.Class         ( liftIO )
+import           Control.Exception.Safe         ( Exception
+                                                , MonadCatch
+                                                , try
+                                                , catch
+                                                , throw
+                                                )
+import           Control.Monad                  ( (>=>)
+                                                , unless
+                                                )
+import           Control.Monad.IO.Class         ( MonadIO
+                                                , liftIO
+                                                )
 import           Control.Monad.Except           ( ExceptT(..) )
-import           Control.Monad.Reader           ( MonadReader
-                                                , runReaderT
+import           Control.Monad.Reader           ( runReaderT
                                                 , asks
                                                 )
 import           Crypto.BCrypt                  ( hashPasswordUsingPolicy
                                                 , slowerBcryptHashingPolicy
+                                                , validatePassword
                                                 )
+import           Data.ByteString                ( ByteString )
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
@@ -34,12 +47,20 @@ import           Data.Text.Encoding             ( encodeUtf8
                                                 )
 import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
-import           Database.Persist.Sql           ( insert_
+import           Database.Persist.Sql           ( (=.)
+                                                , Entity(..)
+                                                , insert
+                                                , insert_
+                                                , update
+                                                , get
                                                 , getBy
                                                 )
 import           DB.Schema                      ( Session(..)
-                                                , Unique(..)
+                                                , SessionId
                                                 , Company(..)
+                                                , CompanyId
+                                                , Unique(..)
+                                                , EntityField(..)
                                                 )
 import           DB.Fields                      ( UUIDField(..)
                                                 , SessionType(..)
@@ -64,6 +85,7 @@ import           Servant.Server                 ( ServerT
                                                 , Handler(..)
                                                 , serve
                                                 , hoistServer
+                                                , err404
                                                 )
 import           System.Random                  ( randomIO )
 import           Types                          ( AppEnv(..)
@@ -92,12 +114,11 @@ server =
 
 
 -- | TODO: Error throwing on unhashable password & uniqueness violations
+-- | TODO: Require user account via cookie auth
 newCompany :: NewCompany -> AppM QWCFile
 newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
-    hashedPassword <-
-        liftIO $ hashPasswordUsingPolicy slowerBcryptHashingPolicy $ encodeUtf8
-            ncPassword
-    cfg <- asks appConfig
+    hashedPassword <- hashPassword $ encodeUtf8 ncPassword
+    cfg            <- asks appConfig
     case hashedPassword of
         Nothing -> V.validationError $ V.formError
             "There was an issue securing the password. Please try again."
@@ -111,7 +132,7 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
                 let company :: Company = Company
                         { companyName         = ncName
                         , companyUser         = ncUsername
-                        , companyPassword     = decodeUtf8 pass
+                        , companyPassword     = pass
                         , companyFileName     = Nothing
                         , companyLastSyncTime = Nothing
                         }
@@ -121,10 +142,14 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     nameError = V.validate "name" "A company with this name already exists."
     userError_ =
         V.validate "username" "A company is already using this username."
+    hashPassword :: MonadIO m => ByteString -> m (Maybe T.Text)
+    hashPassword pass = fmap decodeUtf8
+        <$> liftIO (hashPasswordUsingPolicy slowerBcryptHashingPolicy pass)
 
 
--- | TODO: merge user field into QWCConfig record?
--- TODO: add appname & api base to appconfig
+-- | Build the WebConnetor configuration file for a company.
+-- TODO: merge user field into QWCConfig record?
+-- TODO: add appname & api base url to appconfig
 companyQwcConfig :: AppConfig -> Company -> QWCFile
 companyQwcConfig cfg c = QWCFile
     ( QWCConfig
@@ -154,59 +179,23 @@ companyQwcConfig cfg c = QWCFile
         ["https://", appHostname cfg, ":", pack (show $ appPort cfg), path]
 
 
--- | The QuickBooks WebConnector Configuration for Account Syncing.
-accountSyncQwcConfig :: AppConfig -> QWCConfig
-accountSyncQwcConfig cfg
-    = let
-          url path =
-              T.concat
-                  [ "https://"
-                  , appHostname cfg
-                  , ":"
-                  , pack (show $ appPort cfg)
-                  , path
-                  ]
-      in  QWCConfig
-              { qcAppDescription     = "Syncing Accounts to QBFC"
-              , qcAppDisplayName     = Nothing
-              , qcAppID              = "QBFC_AS"
-              , qcAppName            = "QuickBooks For Communes - Account Sync"
-              , qcAppSupport         = url "/support/"
-              , qcAppUniqueName      = Nothing
-              , qcAppURL             = url "/accountSync/"
-              , qcCertURL            = Just $ url "/cert/"
-              , qcAuthFlags          = []
-              , qcFileID             = appAccountSyncID cfg
-              , qcIsReadOnly         = False
-              , qcNotify             = False
-              , qcOwnerID            = appAccountSyncID cfg
-              , qcPersonalDataPref   = Nothing
-              , qcQBType             = Financial
-              , qcScheduler = Just $ EveryMinute $ appAccountSyncInterval cfg
-              , qcStyle              = Nothing
-              , qcUnattendedModePref = Nothing
-              }
+-- | Generate a QWC File for a 'Company'.
+generateAccountSyncQwc :: CompanyId -> AppM QWCFile
+generateAccountSyncQwc companyId = do
+    cfg     <- asks appConfig
+    company <- runDB $ get companyId >>= maybe (throw err404) return
+    return $ companyQwcConfig cfg company
+
 
 -- | An empty route that does absolutely nothing. This is used for SSL
 -- certificate verification by the WebConnector.
 certRoute :: Monad m => m NoContent
 certRoute = return NoContent
 
--- | Generate a QWC File for the @/accountSync/@ route using the
--- "qwcConfig" & the @acc-sync@ Username.
---
--- TODO: The @encoding@ attribute in the XML declaration makes the
--- WebConnector not accept the given file. Should try to fix this
--- somehow... Maybe directly return the rendered & processed ByteString
--- from this route instead of XML?
---
--- TODO: Take a CompanyId as a parameter & correctly generate their file!
-generateAccountSyncQwc :: MonadReader AppEnv m => m QWCFile
-generateAccountSyncQwc = do
-    cfg <- asks appConfig
-    return $ QWCFile (accountSyncQwcConfig cfg, appAccountSyncUsername cfg)
 
 -- | Perform querying/syncing operations for the QuickBooks Accounts.
+--
+-- TODO: Do both accounting pulling & entry pushing here?
 accountQuery :: Callback -> AppM CallbackResponse
 accountQuery r = case r of
     ServerVersion ->
@@ -216,34 +205,68 @@ accountQuery r = case r of
         -- Accept all Client versions
         return $ ClientVersionResp ""
     Authenticate (Username user) (Password pass) -> do
-        -- Authentication succeeds when the User matches
-        -- TODO: pass companyfile if known?
-        -- TODO: Use bcrypt to hash password & compare to stored hash
-        expectedUser <- asks $ appAccountSyncUsername . appConfig
-        expectedPass <- asks $ appAccountSyncPassword . appConfig
-        let (authResult, status, authError) =
-                if expectedUser /= user || expectedPass /= pass
-                    then (InvalidUser, Completed, Just InvalidAuthentication)
-                    else (ValidUser, Initiated, Nothing)
-        ticket <- runDB $ do
-            ticket <- generateUniqueTicket
-            insert_ Session
-                { sessionTicket = UUIDField ticket
-                , sessionType   = AccountSync
-                , sessionStatus = status
-                , sessionError  = authError
-                }
-            return ticket
+        (ticket, sessionId) <- newSession
+        authResult <- runDB $ flip catch (handleAuthFailure sessionId) $ do
+            (Entity companyId company) <-
+                getBy (UniqueCompanyUser user) >>= maybe authFailure return
+            unless (isValidPassword company pass) authFailure
+            update
+                sessionId
+                [ SessionStatus_ =. Authenticated
+                , SessionCompany =. Just companyId
+                ]
+            case companyFileName company of
+                Nothing       -> return ValidUser
+                Just filename -> return $ CompanyFile filename
         return $ AuthenticateResp ticket authResult Nothing Nothing
     InitialSendRequestXML{} -> do
-        -- TODO: Update company file name?
-        --       Build query w/ modified time as globalLastSyncTime
+        -- TODO:
+        --  * Error out if ticket has no company
+        --  * Update company file name if Nothing.
+        --  * Build query w/ modified time as globalLastSyncTime
         liftIO $ print r
         return $ SendRequestXMLResp AccountQuery
     ReceiveResponseXML _ resp -> do
-        -- TODO: Update Accounts for company
+        -- TODO: Update all Accounts for the company.
+        -- Test equality by edit sequence?
         liftIO $ print resp
         return $ ReceiveResponseXMLResp 100
+  where
+    newSession :: AppM (UUID, SessionId)
+    newSession = runDB $ do
+        ticket <- generateUniqueTicket
+        (ticket, ) <$> insert Session
+            { sessionTicket  = UUIDField ticket
+            , sessionType    = AccountSync
+            , sessionStatus_ = Initiated
+            , sessionError   = Nothing
+            , sessionCompany = Nothing
+            }
+    isValidPassword Company { companyPassword } passwordAttempt =
+        validatePassword (encodeUtf8 companyPassword)
+                         (encodeUtf8 passwordAttempt)
+
+-- | Signals authentication failure during QuickBooks syncing.
+data AuthFailure
+    = AuthFailure
+    deriving (Show, Read, Eq)
+instance Exception AuthFailure
+
+-- | Signal an authentication failure.
+authFailure :: MonadCatch m => m a
+authFailure = throw AuthFailure
+
+-- | Update the session status & error and return a failure authenticaton
+-- result.
+handleAuthFailure :: SessionId -> AuthFailure -> AppSqlM AuthResult
+handleAuthFailure sessionId AuthFailure = do
+    update
+        sessionId
+        [ SessionStatus_ =. Completed
+        , SessionError =. Just InvalidAuthentication
+        ]
+    return InvalidUser
+
 
 -- | Generate a 'Session' 'UUID' that does not yet exist in the
 -- database.

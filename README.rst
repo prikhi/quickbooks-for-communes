@@ -36,7 +36,6 @@ fields:
 .. code:: yaml
 
    account-sync:
-      password: "<some-password>"
       id: "<some-uuid>"
 
 Unless you're running the server on the same system as the WebConnector, you'll
@@ -49,14 +48,8 @@ You can generate UUIDs by running the following commands in ``stack repl``::
    import System.Random
    (randomIO :: IO UUID) >>= print
 
-You can do something similar for password, but you need to launch the REPL with
-``stack repl --package random-strings``::
-
-   import Test.RandomStrings
-   randomWord randomASCII 32 >>= putStrLn
-
 TODO: Add a script for generating minimum ``settings.yaml`` file with
-randomized values.
+randomized values? Generate on first run if one doesn't exist?
 
 
 TLS Configuration

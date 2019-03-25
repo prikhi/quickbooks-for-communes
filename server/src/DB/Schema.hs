@@ -18,6 +18,7 @@ module DB.Schema
     , Company(..)
     , CompanyId
     , Unique(..)
+    , EntityField(..)
     )
 where
 
@@ -35,7 +36,8 @@ share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Session
     ticket UUIDField
     type SessionType
-    status SessionStatus
+    status_ SessionStatus sql=status
+    company CompanyId Maybe
     error SessionError Maybe
     UniqueTicket ticket
     deriving Show Read
