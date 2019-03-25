@@ -1,8 +1,9 @@
 /* Variables */
 $dark: #1A1B25
 $teal: #197278
-$magenta: #d30c7b
-$orange: #f46036
+$magenta: #D30C7B
+$orange: #F46036
+$green: #139A43
 $blue-gray: #8D99AE
 $light-gray: #CBD0DA
 $gray-white: #F4F5F7
@@ -37,6 +38,24 @@ body
   font-size: 1rem
   color: $body-text
   background-color: $body-bg
+
+/* Color and enlarge buttons */
+button.primary, a.link-button
+  font-size: 1rem
+  color: $button-text
+  background-color: $button-primary
+  padding: 0.5em
+  border: $body-text solid 1px
+  border-radius: $border-radius
+  transition: 0.3s background-color
+  cursor: pointer
+
+  &:hover
+    background-color: $button-primary-hover
+
+a.link-button
+  display: inline-block
+  text-decoration: none
 
 
 
@@ -129,20 +148,13 @@ form > p.form-errors
   border: solid 1px $input-error
   border-radius: $border-radius
 
-
-/* Color and enlarge buttons */
-button.primary
-  font-size: 1rem
-  color: $button-text
-  background-color: $button-primary
-  padding: 0.5em
-  border: $body-text solid 1px
+/* Show success text in a box as well */
+p.success
+  color: $green
+  background-color: mix(darken($body-bg, 2%), $green, 92.5%)
+  padding: 0.75em 1em
+  border: solid 1px $green
   border-radius: $border-radius
-  transition: 0.3s background-color
-  cursor: pointer
-
-  &:hover
-    background-color: $button-primary-hover
 
 
 

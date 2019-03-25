@@ -14,7 +14,7 @@ import Prelude
 import Control.Monad.State (class MonadState)
 import Data.Either (Either(..))
 import Data.Array as Array
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -23,14 +23,17 @@ import Web.Event.Event as E
 
 import App
     ( class PreventDefaultSubmit, preventSubmit
+    , class ManageObjectURLs, createObjectURL, revokeObjectURL
     )
-import Server (class Server, newCompanyRequest, NewCompanyData(..))
+import Server (class Server, newCompanyRequest, NewCompanyData(..), QWCFile(..))
 import Validation as V
 
 
+-- TODO: revoke url on component destroy
 component :: forall m i o
     . PreventDefaultSubmit m
    => Server m
+   => ManageObjectURLs m
    => H.Component HH.HTML Query i o m
 component = H.component
     { initialState: const initial
@@ -45,6 +48,7 @@ type State =
     , username :: Maybe String
     , password :: Maybe String
     , errors :: V.FormErrors
+    , objectURL :: Maybe String
     }
 
 -- | Start the form as blank.
@@ -54,6 +58,7 @@ initial =
     , username: Nothing
     , password: Nothing
     , errors: V.empty
+    , objectURL: Nothing
     }
 
 validate :: State -> Either V.FormErrors NewCompanyData
@@ -78,6 +83,7 @@ eval :: forall m
     . MonadState State m
    => PreventDefaultSubmit m
    => Server m
+   => ManageObjectURLs m
    => Query ~> m
 eval = case _ of
     InputName str next -> do
@@ -100,44 +106,99 @@ eval = case _ of
                 H.modify_ (_ { errors = errs })
             Right ncd -> do
                 H.modify_ (_ { errors = V.empty })
-                -- TODO: Handle some response, like company id or the qwc file.
                 newCompanyRequest ncd >>= \r -> case r.body of
                     Left errs ->
                         H.modify_ (_ { errors = errs })
-                    Right _ ->
-                        pure unit
+                    Right (QWCFile fileBlob) -> do
+                        qwcURL <- createObjectURL fileBlob
+                        case st.objectURL of
+                            Nothing ->
+                                pure unit
+                            Just objectURL ->
+                                revokeObjectURL objectURL
+                        H.modify_ (_ { objectURL = Just qwcURL })
         pure next
   where
     revalidate = V.revalidate validate
 
 
 -- | Render the New Company page.
+-- | TODO: Implement initialization in server - i.e., save company file path
 render :: State -> H.ComponentHTML Query
 render st =
-    HH.div_
-        [ HH.p_
-            [ HH.text "Use this form to add a new QuickBooks Company. A Company \
-                \will sync to a specific QuickBooks file, pulling it's account \
-                \data and allowing entries to be created for it."
-            ]
-        , HH.p_
-            [ HH.text "After creating a Company, you will be given a configuration \
-                \file for the QuickBooks WebConnector. You will need to open the \
-                \company in QuickBooks, and add the config to the WebConnector to \
-                \initialize the data."
-            ]
-        , HH.form [ HE.onSubmit $ HE.input SubmitForm ]
-            [ formErrors $ V.getFormErrors st.errors
-            , input "Company Name" HP.InputText st.name InputName $ errors "name"
-            , input "Username" HP.InputText st.username InputUser $ errors "username"
-            , input "Password" HP.InputPassword st.password InputPass $ errors "password"
-            , submitButton "Add Company"
-            ]
-        ]
+    maybe showForm showDownload st.objectURL
   where
+    showForm =
+        HH.div_
+            [ HH.p_
+                [ HH.text "Use this form to add a new QuickBooks Company. A Company \
+                    \will sync to a specific QuickBooks file, pulling it's account \
+                    \data and allowing entries to be created for it."
+                ]
+            , HH.p_
+                [ HH.text "After creating a Company, you will be given a configuration \
+                    \file for the QuickBooks WebConnector. You will need to open the \
+                    \company in QuickBooks, and add the file to the WebConnector to \
+                    \initialize the data."
+                ]
+            , HH.form [ HE.onSubmit $ HE.input SubmitForm ]
+                [ formErrors $ V.getFormErrors st.errors
+                , input "Company Name" HP.InputText st.name InputName $ errors "name"
+                , input "Username" HP.InputText st.username InputUser $ errors "username"
+                , input "Password" HP.InputPassword st.password InputPass $ errors "password"
+                , submitButton "Add Company"
+                ]
+            ]
+    showDownload objectURL =
+        HH.div_
+            [ HH.p [ HP.class_ $ H.ClassName "success" ]
+                [ HH.text "Your company was successfully created." ]
+            , HH.p_
+                [ HH.text "The last step in setting up a new company is to manually \
+                    \run the first sync manually. To do this, you need to:"
+                ]
+            , HH.ol_
+                [ liText "Ensure the QuickBooks Web Connector is running."
+                , liText "Un-check all the Auto-Run checkboxes."
+                , liText "Open the Company's File in QuickBooks."
+                , liText "Save your Company's Web Connector Configuration(qwc) \
+                    \File using the button below."
+                , liText "Open the file in QuickBooks Web Connector using the\
+                    \ \"Add an Application\" button."
+                , liText "Authorize the application in the Web Connector popup."
+                , liText "Authorze the application in QuickBooks popup. Select \
+                    \the option to allow access even when QuickBooks is not running."
+                , liText "Make sure only the new application is selected in the \
+                    \Web Connector list."
+                , liText "In the popup, enter the password you used when creating \
+                    \the company. Choose to save the password when prompted."
+                , liText "Click the \"Update Selected\" button in the Web Connector."
+                , liText "Re-check any of the Auto-Run checkboxes you unchecked earlier."
+                , liText "The new company should now be available when creating entries."
+                ]
+            , downloadButton (fromMaybe "sync" st.name <> ".qwc")
+                "Download Your QWC File" objectURL
+            ]
     liText t = HH.li_ [ HH.text t ]
     errors field = V.getFieldErrors field st.errors
 
+
+-- | Show a download button using an `a` element with a `download` attribute.
+downloadButton :: forall f
+    . String
+   -- ^ Filename
+   -> String
+   -- ^ Button Text
+   -> String
+   -- ^ Object URL
+   -> H.ComponentHTML f
+downloadButton filename text objectURL =
+    HH.a
+        [ HP.href objectURL
+        , HP.attr (H.AttrName "download") filename
+        , HP.class_ $ H.ClassName "link-button"
+        ]
+        [ HH.text text ]
 
 
 -- Forms - TODO: stick in module

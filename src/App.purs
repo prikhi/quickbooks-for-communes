@@ -23,6 +23,8 @@ import Foreign (unsafeToForeign)
 import Halogen as H
 import Routing.PushState (PushStateInterface)
 import Web.Event.Event as E
+import Web.File.Blob (Blob)
+import Web.File.Url as F
 import Web.HTML.Event.EventTypes as ET
 import Web.UIEvent.MouseEvent as ME
 import Web.UIEvent.MouseEvent.EventTypes as MET
@@ -128,3 +130,19 @@ instance logToConsoleHalogen :: LogToConsole m
     => LogToConsole (H.HalogenM s f g p o m) where
     logShow = H.lift <<< logShow
     log = H.lift <<< log
+
+
+-- Blob Object URLs
+
+class Monad m <= ManageObjectURLs m where
+    createObjectURL :: Blob -> m String
+    revokeObjectURL :: String -> m Unit
+
+instance manageObjectUrlsApp :: ManageObjectURLs AppM where
+    createObjectURL = H.liftEffect <<< F.createObjectURL
+    revokeObjectURL = H.liftEffect <<< F.revokeObjectURL
+
+instance manageObjectUrlsHalogen :: ManageObjectURLs m
+    => ManageObjectURLs (H.HalogenM s f g p o m) where
+    createObjectURL = H.lift <<< createObjectURL
+    revokeObjectURL = H.lift <<< revokeObjectURL
