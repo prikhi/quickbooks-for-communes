@@ -12,7 +12,8 @@ module DB.Fields
 where
 
 import           Data.UUID                      ( UUID )
-import           Data.Text                      ( pack
+import           Data.Text                      ( Text
+                                                , pack
                                                 , unpack
                                                 )
 import           Database.Persist.Sql
@@ -43,7 +44,7 @@ $(derivePersistField "SessionStatus")
 -- | Possible errors during WebConnector 'DB.Schema.Session' processing.
 data SessionError
     = InvalidAuthentication
-    | QuickBooksConnectionError
+    | QuickBooksConnectionError Text
     deriving (Show, Read, Eq)
 
 $(derivePersistField "SessionError")

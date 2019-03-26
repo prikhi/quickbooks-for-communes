@@ -250,7 +250,7 @@ accountQuery r = case r of
                 Just err ->
                     return $ CloseConnectionResp $ "Ran Into Error: " <> pack
                         (show err)
-    ConnectionError ticket _ _ -> runDB $ validateTicket ticket >>= \case
+    ConnectionError ticket _ message -> runDB $ validateTicket ticket >>= \case
         Nothing -> return $ ConnectionErrorResp "done"
         Just (Entity sessionId session, Entity _ company) -> do
             attemptNumber <- case sessionStatus_ session of
@@ -264,9 +264,9 @@ accountQuery r = case r of
                            [SessionStatus_ =. HandlingConnectionError 1]
                         >> return 1
             if attemptNumber > 2
-                then abortConnectionRetrying sessionId
+                then abortConnectionRetrying sessionId message
                 else
-                    maybe (abortConnectionRetrying sessionId)
+                    maybe (abortConnectionRetrying sessionId message)
                           (return . ConnectionErrorResp)
                         $ companyFileName company
   where
@@ -302,11 +302,11 @@ accountQuery r = case r of
 
     -- Stop retrying the quickbooks connection in the ConnectionError
     -- callback.
-    abortConnectionRetrying :: SessionId -> AppSqlM CallbackResponse
-    abortConnectionRetrying sessionId =
+    abortConnectionRetrying :: SessionId -> T.Text -> AppSqlM CallbackResponse
+    abortConnectionRetrying sessionId message =
         update
                 sessionId
-                [ SessionError =. Just QuickBooksConnectionError
+                [ SessionError =. Just (QuickBooksConnectionError message)
                 , SessionStatus_ =. Completed
                 ]
             >> return (ConnectionErrorResp "done")
