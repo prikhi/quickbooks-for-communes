@@ -79,6 +79,7 @@ import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , AuthResult(..)
                                                 , Username(..)
                                                 , Password(..)
+                                                , GetLastErrorResult(LastError)
                                                 )
 import           Servant.API
 import           Servant.Server                 ( ServerT
@@ -272,6 +273,22 @@ accountQuery r = case r of
                     maybe (abortConnectionRetrying sessionId message)
                           (return . ConnectionErrorResp)
                         $ companyFileName company
+    GetLastError ticket ->
+        runDB
+            $   getSession ticket
+            >>= fmap (GetLastErrorResp . LastError)
+            .   \case
+                    Nothing -> return "Unable to identify session."
+                    Just (Entity sessionId session) -> do
+                        let
+                            message = case sessionError session of
+                                Just err -> "Encountered error while syncing: "
+                                    <> pack (show err)
+                                Nothing ->
+                                    "Session called getLastError, but "
+                                        <> "session has no error set!"
+                        update sessionId [SessionStatus_ =. ErrorReported message]
+                        return message
   where
     newSession :: AppM (UUID, SessionId)
     newSession = runDB $ do

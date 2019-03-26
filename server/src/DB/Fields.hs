@@ -36,6 +36,7 @@ data SessionStatus
     | Authenticated
     | RequestedAccounts
     | HandlingConnectionError Integer
+    | ErrorReported Text
     | Completed
     deriving (Show, Read, Eq)
 

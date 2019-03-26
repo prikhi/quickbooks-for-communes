@@ -20,6 +20,7 @@ module QuickBooks.WebConnector
     , AuthResult(..)
     , PostponeMinutes(..)
     , AutorunMinutes(..)
+    , GetLastErrorResult(..)
     )
 where
 
@@ -221,6 +222,8 @@ data Callback
         UUID                -- ^ The session ticket
         Text                -- ^ The @HRESULT@ hex-string thrown by the WebConnector.
         Text                -- ^ The error message for the HRESULT.
+    | GetLastError
+        UUID                -- ^ The session ticket
     deriving (Show)
 
 instance FromXML Callback where
@@ -232,6 +235,7 @@ instance FromXML Callback where
         , parseReceiveResponseXML
         , parseCloseConnection
         , parseConnectionError
+        , parseGetLastError
         , parseError "Unsupported WebConnector Callback"
         ]
 
@@ -295,6 +299,12 @@ parseConnectionError = matchName (qbName "connectionError") $ do
     message <- find (qbName "message") parseContent
     return $ ConnectionError ticket hresult message
 
+parseGetLastError :: Parser Callback
+parseGetLastError =
+    matchName (qbName "getLastError")
+        $   GetLastError
+        <$> find (qbName "ticket") parseUUID
+
 -- | Build an 'Element' name in the Intuit Developer 'Namespace'.
 qbName :: Text -> Name
 qbName = withNamespace "http://developer.intuit.com/"
@@ -322,9 +332,10 @@ data CallbackResponse
     -- ^ Return a session ticket & the authentication result
     | SendRequestXMLResp (Either () Request)
     -- ^ Send the given qbXML request
+    -- TODO: refactor: PauseOrError | MakeRequest Request
     | ReceiveResponseXMLResp Integer
-    -- ^ Send the 0-100 percentage complete or a negative number as an
-    -- error.
+    -- ^ Send the 0-100 for the percentage complete or a negative number to
+    -- trigger a getLastError call.
     -- TODO: Refactor Integer into InProgress, Complete, or Error types.
     | CloseConnectionResp Text
     -- ^ Send the status text to show in the WebConnector UI.
@@ -332,6 +343,10 @@ data CallbackResponse
     -- ^ Send "done" to close the connection, or any other text as the path
     -- to a company file to open.
     -- TODO: Refactor Text -> Done | TryCompanyFile
+    | GetLastErrorResp GetLastErrorResult
+    -- ^ Return a message string describing the issue, switch into
+    -- interactive mode, or pause for 5 seconds and call sendRequestXML
+    -- again.
     deriving (Show)
 
 instance ToXML CallbackResponse where
@@ -367,6 +382,10 @@ instance ToXML CallbackResponse where
             xelemQ qbNamespace "connectionErrorResponse" $
                 xelemQ qbNamespace "connectionErrorResult" $
                     xtext message
+        GetLastErrorResp result ->
+            xelemQ qbNamespace "getLastErrorResponse" $
+                xelemQ qbNamespace "getLastErrorResult" $
+                    toXML result
 
 
 -- | Render a Text list as a QuickBooks String Array.
@@ -425,3 +444,22 @@ newtype AutorunMinutes
 
 instance Show AutorunMinutes where
     show = show . fromAutorunMinutes
+
+-- | Possible response values for the getLastError callback.
+data GetLastErrorResult
+    = NoOp
+    -- ^ Pause for 5 seconds and then call sendRequestXML again.
+    | InteractiveMode
+    -- ^ Switch to interactive mode and then call getInteractiveURL
+    | LastError Text
+    -- ^ Log & show the error in the WebConnector and close the connection.
+    deriving (Show, Read, Eq)
+
+instance ToXML GetLastErrorResult where
+    toXML = xtext . \case
+        NoOp ->
+            "NoOp"
+        InteractiveMode ->
+            "Interactive mode"
+        LastError message ->
+            message
