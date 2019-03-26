@@ -15,6 +15,8 @@ module DB.Schema
     -- * Database Types
     , Session(..)
     , SessionId
+    , Account(..)
+    , AccountId
     , Company(..)
     , CompanyId
     , Unique(..)
@@ -31,6 +33,7 @@ import           DB.Fields                      ( UUIDField
                                                 , SessionStatus
                                                 , SessionType
                                                 )
+import           QuickBooks.QBXML               ( AccountType )
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Session
@@ -40,6 +43,17 @@ Session
     company CompanyId Maybe
     error SessionError Maybe
     UniqueTicket ticket
+    deriving Show Read
+
+Account
+    name Text
+    fullName Text
+    listId Text
+    type AccountType
+    parent AccountId Maybe
+    isActive Bool
+    company CompanyId
+    UniqueListId company listId
     deriving Show Read
 
 Company

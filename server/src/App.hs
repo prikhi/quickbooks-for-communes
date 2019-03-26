@@ -40,24 +40,32 @@ import           Crypto.BCrypt                  ( hashPasswordUsingPolicy
                                                 , validatePassword
                                                 )
 import           Data.ByteString                ( ByteString )
-import           Data.Maybe                     ( isNothing )
+import qualified Data.HashMap.Strict           as HM
+import qualified Data.List                     as L
+import           Data.Maybe                     ( fromMaybe
+                                                , isNothing
+                                                )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
+import           Data.Time                      ( getCurrentTime )
 import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
 import           Database.Persist.Sql           ( (=.)
                                                 , Entity(..)
                                                 , insert
                                                 , insert_
+                                                , insertBy
                                                 , update
                                                 , get
                                                 , getBy
                                                 )
 import           DB.Schema                      ( Session(..)
                                                 , SessionId
+                                                , Account(..)
+                                                , AccountId
                                                 , Company(..)
                                                 , CompanyId
                                                 , Unique(..)
@@ -70,7 +78,12 @@ import           DB.Fields                      ( UUIDField(..)
                                                 )
 import           Network.Wai                    ( Application )
 import           Paths_qbfc                     ( version )
-import           QuickBooks.QBXML               ( Request(AccountQuery) )
+import           QuickBooks.QBXML               ( Request(AccountQuery)
+                                                , Response(AccountQueryResponse)
+                                                , AccountData(..)
+                                                , ListReference(..)
+                                                , OptionalListReference(..)
+                                                )
 import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , QBType(..)
                                                 , Schedule(..)
@@ -238,12 +251,17 @@ accountQuery r = case r of
                         -- greater than companyLastSyncTime(if not-nothing)
                         liftIO $ print r
                         return $ SendRequestXMLResp $ Right AccountQuery
-    ReceiveResponseXML _ resp -> do
-        -- TODO: Update all Accounts for the company.
-        -- save last sync time
-        -- Test equality by edit sequence?
-        liftIO $ print resp
-        return $ ReceiveResponseXMLResp 100
+    ReceiveResponseXML ticket resp -> runDB (validateTicket ticket) >>= \case
+        Just (Entity sessionId _, Entity companyId _) -> case resp of
+            AccountQueryResponse accounts -> do
+                runDB $ update sessionId [SessionStatus_ =. UpdatingAccounts]
+                runDB $ do
+                    updateAccounts companyId accounts
+                    now <- liftIO getCurrentTime
+                    update companyId [CompanyLastSyncTime =. Just now]
+                return $ ReceiveResponseXMLResp 100
+            _ -> return $ ReceiveResponseXMLResp (-1)
+        Nothing -> return $ ReceiveResponseXMLResp (-2)
     CloseConnection ticket -> runDB $ getSession ticket >>= \case
         Nothing -> return $ CloseConnectionResp "Unable to identify session."
         Just (Entity sessionId session) -> do
@@ -363,3 +381,86 @@ generateUniqueTicket = do
     getBy (UniqueTicket $ UUIDField ticket) >>= \case
         Nothing -> return ticket
         Just _  -> generateUniqueTicket
+
+
+updateAccounts :: CompanyId -> [AccountData] -> AppSqlM ()
+updateAccounts companyId accounts = do
+    let (roots, dataMap, childMap) = foldl
+            (\(roots_, dataMap_, childMap_) account ->
+                ( buildRootList roots_ account
+                , buildDataMap dataMap_ account
+                , buildChildMap childMap_ account
+                )
+            )
+            ([], HM.empty, HM.empty)
+            accounts
+    mapM_ (runUpdate dataMap childMap Nothing) roots
+  where
+    buildRootList :: [ListReference] -> AccountData -> [ListReference]
+    buildRootList roots AccountData { parentAccount, accountReference } =
+        if isBlank parentAccount then accountReference : roots else roots
+
+    buildDataMap
+        :: HM.HashMap ListReference AccountData
+        -> AccountData
+        -> HM.HashMap ListReference AccountData
+    buildDataMap acc a@AccountData { accountReference } =
+        HM.insert accountReference a acc
+
+    buildChildMap
+        :: HM.HashMap ListReference [ListReference]
+        -> AccountData
+        -> HM.HashMap ListReference [ListReference]
+    buildChildMap acc AccountData { parentAccount, accountReference } =
+        case parentAccount of
+            Just OptionalListReference { optionalListID, optionalFullName } ->
+                case (optionalListID, optionalFullName) of
+                    (Just listID, Just fullName) ->
+                        let parentReference =
+                                ListReference {listID , fullName }
+                        in  HM.insertWith (\new old -> L.nub $ new <> old)
+                                          parentReference
+                                          [accountReference]
+                                          acc
+                    _ -> acc
+            _ -> acc
+
+    isBlank :: Maybe OptionalListReference -> Bool
+    isBlank =
+        maybe True
+            $ \OptionalListReference { optionalListID, optionalFullName } ->
+                  case (optionalListID, optionalFullName) of
+                      (Nothing, Nothing) -> True
+                      _                  -> False
+
+    runUpdate
+        :: HM.HashMap ListReference AccountData
+        -> HM.HashMap ListReference [ListReference]
+        -> Maybe AccountId
+        -> ListReference
+        -> AppSqlM ()
+    runUpdate dataMap childMap maybeParent accountRef =
+        let children = fromMaybe [] $ HM.lookup accountRef childMap
+        in
+            case HM.lookup accountRef dataMap of
+                Nothing -> return ()
+                Just accountData ->
+                    let account = transform maybeParent accountData
+                    in
+                        do
+                            accountId <- either entityKey id
+                                <$> insertBy account
+                            mapM_
+                                (runUpdate dataMap childMap $ Just accountId)
+                                children
+
+    transform :: Maybe AccountId -> AccountData -> Account
+    transform accountParent AccountData {..} = Account
+        { accountName
+        , accountFullName = fullName accountReference
+        , accountListId   = listID accountReference
+        , accountType
+        , accountParent
+        , accountIsActive = isActive
+        , accountCompany  = companyId
+        }

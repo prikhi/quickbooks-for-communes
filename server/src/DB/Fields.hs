@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {- | Defines database field types & their Persistent instances. -}
@@ -6,6 +7,8 @@ module DB.Fields
       SessionType(..)
     , SessionStatus(..)
     , SessionError(..)
+      -- * Account Fields
+    , AccountType(..)
       -- * Generic Fields
     , UUIDField(..)
     )
@@ -18,6 +21,7 @@ import           Data.Text                      ( Text
                                                 )
 import           Database.Persist.Sql
 import           Database.Persist.TH            ( derivePersistField )
+import           QuickBooks.QBXML               ( AccountType(..) )
 
 
 -- SESSIONS
@@ -35,6 +39,7 @@ data SessionStatus
     = Initiated
     | Authenticated
     | RequestedAccounts
+    | UpdatingAccounts
     | HandlingConnectionError Integer
     | ErrorReported Text
     | Completed
@@ -49,6 +54,11 @@ data SessionError
     deriving (Show, Read, Eq)
 
 $(derivePersistField "SessionError")
+
+
+-- ACCOUNTS
+
+$(derivePersistField "AccountType")
 
 
 -- GENERIC

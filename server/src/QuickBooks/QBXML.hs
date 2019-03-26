@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -66,12 +67,14 @@ module QuickBooks.QBXML
     )
 where
 
+import           Data.Hashable                  ( Hashable )
 import           Data.Text                      ( Text )
 import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( decodeUtf8 )
 import           Data.Time                      ( Day
                                                 , UTCTime
                                                 )
+import           GHC.Generics                   ( Generic )
 import           Parser                         ( parseError
                                                 , matchName
                                                 , oneOf
@@ -1009,7 +1012,9 @@ data ListReference
     = ListReference
         { listID :: Text
         , fullName :: Text
-        } deriving (Show, Read)
+        } deriving (Show, Read, Eq, Generic)
+
+instance Hashable ListReference
 
 -- | Parse a ListReference from the current element's ListID & FullName
 -- child elements.
@@ -1028,7 +1033,7 @@ data OptionalListReference
     = OptionalListReference
         { optionalListID :: Maybe Text
         , optionalFullName :: Maybe Text
-        } deriving (Show, Read)
+        } deriving (Show, Read, Eq)
 
 -- | Parse an OptionalListReference from the current Element.
 instance FromXML OptionalListReference where
