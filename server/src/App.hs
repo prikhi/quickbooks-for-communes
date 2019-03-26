@@ -150,18 +150,17 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
 
 -- | Build the WebConnetor configuration file for a company.
 -- TODO: merge user field into QWCConfig record?
--- TODO: add appname & api base url to appconfig
 companyQwcConfig :: AppConfig -> Company -> QWCFile
 companyQwcConfig cfg c = QWCFile
     ( QWCConfig
-        { qcAppDescription     = "Syncing Accounts to QBFC"
+        { qcAppDescription     = "Syncing Accounts to " <> appName cfg
         , qcAppDisplayName     = Nothing
         , qcAppID              = "QBFC_AS"
-        , qcAppName            = "QuickBooks For Communes - " <> companyName c
+        , qcAppName            = appName cfg <> " - " <> companyName c
         , qcAppSupport         = url "/support/"
         , qcAppUniqueName      = Nothing
-        , qcAppURL             = url "/accountSync/"
-        , qcCertURL            = Just $ url "/cert/"
+        , qcAppURL             = url $ appBaseUrl cfg <> "/accountSync/"
+        , qcCertURL            = Just $ url $ appBaseUrl cfg <> "/cert/"
         , qcAuthFlags          = []
         , qcFileID             = appAccountSyncID cfg
         , qcIsReadOnly         = False
@@ -177,7 +176,11 @@ companyQwcConfig cfg c = QWCFile
     )
   where
     url path = T.concat
-        ["https://", appHostname cfg, ":", pack (show $ appPort cfg), path]
+        [ "https://"
+        , appHostname cfg
+        , if appPort cfg /= 80 then ":" <> pack (show $ appPort cfg) else ""
+        , path
+        ]
 
 
 -- | Generate a QWC File for a 'Company'.

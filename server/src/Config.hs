@@ -43,6 +43,14 @@ data AppConfig =
         -- @qbfc-server.local@.
         , appPort :: Int
         -- ^ The port the server listens on.
+        , appBaseUrl :: Text
+        -- ^ The URL path the API server will live under. E.g., @""@ when
+        -- serving the API at the root path for a domain or @"/api/"@ when
+        -- proxying the API server under some nested path.
+                                                                          -- will
+
+        , appName :: Text
+        -- ^ The name of the application that should be shown to users.
 
         , appDBHost :: Text
         -- ^ The name of the database host to connect to.
@@ -84,6 +92,8 @@ instance FromJSON AppConfig where
         host <- fmap fromString $ o .: "host"
         hostname <- o .: "hostname"
         port <- o .: "port"
+        baseUrl <- o .: "base-url"
+        name <- o .: "name"
         (dbHost, dbPort, dbUser, dbPass, dbName, dbConnectionCount) <- o .: "db"
             >>= withObject "db"
                 (\db ->
@@ -116,6 +126,9 @@ instance FromJSON AppConfig where
             { appHost = host
             , appHostname = hostname
             , appPort = port
+            , appBaseUrl = baseUrl
+
+            , appName = name
 
             , appDBHost = dbHost
             , appDBPort = dbPort

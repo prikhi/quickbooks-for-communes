@@ -9,6 +9,9 @@
 host: "*"
 hostname: "localhost"
 port: 3000
+base-url: ""
+
+name: "QuickBooks for Communes"
 
 db:
     host: ""
