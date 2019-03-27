@@ -5,10 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "spago bundle",
-    "watch": "spago bundle -w",
+    "build": "spago bundle && parcel build src/index.html",
+    "watch": "pscid",
     "serve": "node dev-server.js",
-    "dist": "spago bundle && parcel build src/index.html",
     "pscid:build": "spago build"
   },
   "author": "",

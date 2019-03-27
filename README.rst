@@ -20,29 +20,24 @@ This is still in the alpha stage, but under active development.
 Client
 ######
 
-We use `Spago`_ to build the client code & `Parcel`_ to bundle & serve the UI
-during development.
+We use `Spago`_ & `pscid`_ to build the client code & `Parcel`_ to bundle &
+serve the UI during development.
 
 .. code:: bash
 
    cd client
    npm install
-   npm run build
+   npm run watch
    npm run serve
 
-You can also watch the source files and rebuild the code when they change:
+The ``watch`` command rebuilds the client when the source files change, and
+``serve`` starts a development server that builds the styles, serves the index,
+& redirects requests to the ``/api/`` path to the backend server.
 
-.. code:: bash
-
-   npm run watch
-
-To assemble the code, styles, & ``index.html`` file for production:
-
-.. code:: bash
-
-   npm run dist
+To assemble the code, styles, & ``index.html`` file for production, run ``npm run build``.
 
 .. _Spago: https://github.com/spacchetti/spago
+.. _pscid: https://github.com/kRITZCREEK/pscid
 .. _Parcel: https://parceljs.org/
 
 
