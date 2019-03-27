@@ -47,12 +47,12 @@ Session
 
 Account
     name Text
-    fullName Text
     listId Text
     type AccountType
     parent AccountId Maybe
     isActive Bool
     company CompanyId
+    modifiedTime UTCTime
     UniqueListId company listId
     deriving Show Read
 

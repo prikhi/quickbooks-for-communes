@@ -477,10 +477,10 @@ updateAccounts companyId accounts = do
     transform :: Maybe AccountId -> AccountData -> Account
     transform accountParent AccountData {..} = Account
         { accountName
-        , accountFullName = fullName accountReference
-        , accountListId   = listID accountReference
+        , accountListId       = listID accountReference
         , accountType
         , accountParent
-        , accountIsActive = isActive
-        , accountCompany  = companyId
+        , accountIsActive     = isActive
+        , accountModifiedTime = modifiedAt
+        , accountCompany      = companyId
         }
