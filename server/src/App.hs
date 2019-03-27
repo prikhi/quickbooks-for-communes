@@ -64,6 +64,7 @@ import           Database.Persist.Sql           ( (=.)
                                                 , insert_
                                                 , insertBy
                                                 , update
+                                                , replace
                                                 , get
                                                 , getBy
                                                 )
@@ -403,23 +404,37 @@ generateUniqueTicket = do
         Just _  -> generateUniqueTicket
 
 
+-- | Update a Company's Accounts using the AccountData returned from
+-- QuickBooks. First we attempt to insert/update Accounts from root nodes
+-- down to all their descendents.
+--
+-- During partial updates, we do not get all the required root nodes.
+-- Instead of top-down updating, we iterate through the list of accounts,
+-- first inserting parents that are furthur down the list or finding them
+-- in the database. After finding & upserting the parent, we use it's
+-- AccountId to upsert the child Account.
 updateAccounts :: CompanyId -> [AccountData] -> AppSqlM ()
 updateAccounts companyId accounts = do
-    let (roots, dataMap, childMap) = foldl
-            (\(roots_, dataMap_, childMap_) account ->
+    let (roots, dataMap, childMap, refList) = foldl
+            (\(roots_, dataMap_, childMap_, refList_) account ->
                 ( buildRootList roots_ account
                 , buildDataMap dataMap_ account
                 , buildChildMap childMap_ account
+                , accountReference account : refList_
                 )
             )
-            ([], HM.empty, HM.empty)
+            ([], HM.empty, HM.empty, [])
             accounts
-    mapM_ (runUpdate dataMap childMap Nothing) roots
+    insertedRefs <- concat <$> mapM (runUpdate dataMap childMap Nothing) roots
+    let uninserted = refList L.\\ insertedRefs
+    processFragments dataMap uninserted
   where
+    -- | Build the list of root ListReferences.
     buildRootList :: [ListReference] -> AccountData -> [ListReference]
     buildRootList roots AccountData { parentAccount, accountReference } =
         if isBlank parentAccount then accountReference : roots else roots
 
+    -- | Build a mapping from ListReferences to QuickBooks AccountData.
     buildDataMap
         :: HM.HashMap ListReference AccountData
         -> AccountData
@@ -427,6 +442,8 @@ updateAccounts companyId accounts = do
     buildDataMap acc a@AccountData { accountReference } =
         HM.insert accountReference a acc
 
+    -- | Build a mapping from Parent ListReferences to Child
+    -- ListReferences.
     buildChildMap
         :: HM.HashMap ListReference [ListReference]
         -> AccountData
@@ -445,6 +462,7 @@ updateAccounts companyId accounts = do
                     _ -> acc
             _ -> acc
 
+    -- | Are all fields in the OptionalListReference Nothing?
     isBlank :: Maybe OptionalListReference -> Bool
     isBlank =
         maybe True
@@ -453,27 +471,32 @@ updateAccounts companyId accounts = do
                       (Nothing, Nothing) -> True
                       _                  -> False
 
+    -- | Insert/Update the account, given the data map, child map, & parent
+    -- account ID.
     runUpdate
         :: HM.HashMap ListReference AccountData
         -> HM.HashMap ListReference [ListReference]
         -> Maybe AccountId
         -> ListReference
-        -> AppSqlM ()
-    runUpdate dataMap childMap maybeParent accountRef =
-        let children = fromMaybe [] $ HM.lookup accountRef childMap
-        in
-            case HM.lookup accountRef dataMap of
-                Nothing -> return ()
-                Just accountData ->
-                    let account = transform maybeParent accountData
-                    in
-                        do
-                            accountId <- either entityKey id
-                                <$> insertBy account
-                            mapM_
-                                (runUpdate dataMap childMap $ Just accountId)
-                                children
+        -> AppSqlM [ListReference]
+    runUpdate dataMap childMap maybeParent accountRef
+        = let children = fromMaybe [] $ HM.lookup accountRef childMap
+          in
+              case HM.lookup accountRef dataMap of
+                  Nothing          -> return [accountRef]
+                  Just accountData -> do
+                      let account = transform maybeParent accountData
+                      accountId <- either entityKey id <$> insertBy account
+                      childRefs <-
+                          concat
+                              <$> mapM
+                                      ( runUpdate dataMap childMap
+                                      $ Just accountId
+                                      )
+                                      children
+                      return $ accountRef : childRefs
 
+    -- | Build an Account from it's parent ID & the QuickBooks AccountData.
     transform :: Maybe AccountId -> AccountData -> Account
     transform accountParent AccountData {..} = Account
         { accountName
@@ -484,3 +507,63 @@ updateAccounts companyId accounts = do
         , accountModifiedTime = modifiedAt
         , accountCompany      = companyId
         }
+
+    -- | Insert the account if the unique list reference doesn't exist, otherwise
+    -- replace the existing account.
+    uniqueRepsert :: Account -> AppSqlM AccountId
+    uniqueRepsert account =
+        getBy (UniqueListId companyId $ accountListId account) >>= \case
+            Nothing -> insert account
+            Just (Entity accountId _) ->
+                replace accountId account >> return accountId
+
+    -- | Insert/Update Accounts whose roots were not in the account list.
+    processFragments
+        :: HM.HashMap ListReference AccountData -> [ListReference] -> AppSqlM ()
+    processFragments dataMap refs = case refs of
+        []              -> return ()
+        ref : toProcess -> do
+            (_, remaining) <- processFragment dataMap ref toProcess
+            processFragments dataMap remaining
+
+    -- | Insert/Update an Account whose root we were not given. First we
+    -- attempt to find the parent AccountData in the list of references. If
+    -- it exists, we process the parent first & use the returned ID to
+    -- insert the child. If it does not exist, we get the parent's account
+    -- ID from the database, using the parent's listID. After inserting the
+    -- parent & child, we return the child's account ID & the remaining
+    -- references that have no yet been updated.
+    processFragment
+        :: HM.HashMap ListReference AccountData
+        -> ListReference
+        -> [ListReference]
+        -> AppSqlM (Maybe AccountId, [ListReference])
+    processFragment dataMap ref remaining = case HM.lookup ref dataMap of
+        Nothing      -> return (Nothing, remaining)
+        Just account -> case getFullParentReference account of
+            Nothing            -> return (Nothing, remaining)
+            Just parentListRef -> case L.find (== parentListRef) remaining of
+                Just parentRef -> do
+                    (parentAccountId, remaining_) <-
+                        processFragment dataMap parentRef
+                            $ L.delete parentRef remaining
+                    accountId <- uniqueRepsert
+                        $ transform parentAccountId account
+                    return (Just accountId, remaining_)
+                Nothing ->
+                    getBy (UniqueListId companyId $ listID parentListRef)
+                        >>= \case
+                                Just (Entity parentAccountId _) -> do
+                                    accountId <- uniqueRepsert $ transform
+                                        (Just parentAccountId)
+                                        account
+                                    return (Just accountId, remaining)
+                                Nothing -> return (Nothing, remaining)
+
+    -- | Build a ListReference for the Account's Parent.
+    getFullParentReference :: AccountData -> Maybe ListReference
+    getFullParentReference account = case parentAccount account of
+        Nothing     -> Nothing
+        Just optRef -> case (optionalListID optRef, optionalFullName optRef) of
+            (Just listID, Just fullName) -> Just ListReference {..}
+            _                            -> Nothing
