@@ -1,0 +1,25 @@
+{
+  "name": "halogen-sample",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "watch": "spago bundle -w",
+    "serve": "node dev-server.js",
+    "pscid:build": "spago build"
+  },
+  "author": "",
+  "license": "GPL-3.0",
+  "dependencies": {
+    "parcel-bundler": "^1.12.3",
+    "pscid": "^2.6.0",
+    "purescript": "^0.12.3",
+    "spago": "^0.7.1"
+  },
+  "devDependencies": {
+    "express": "^4.16.4",
+    "http-proxy-middleware": "^0.19.1",
+    "sass": "^1.17.3"
+  }
+}

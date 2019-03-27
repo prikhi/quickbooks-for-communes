@@ -1,0 +1,231 @@
+/* Variables */
+$dark: #1A1B25
+$teal: #197278
+$magenta: #D30C7B
+$orange: #F46036
+$green: #139A43
+$blue-gray: #8D99AE
+$light-gray: #CBD0DA
+$gray-white: #F4F5F7
+
+
+$body-text: $dark
+$body-bg: $gray-white
+$border-radius: 5px
+
+$nav-text: $body-bg
+$nav-bg: $body-text
+$nav-active-bg: lighten($nav-bg, 15%)
+$nav-hover-bg: $teal
+$nav-hover-line: $magenta
+
+$input-bg: lighten($body-bg, 2.5%)
+$input-focus: $teal
+$input-focus-spread: 4px
+$input-error: $magenta
+
+$button-text: $body-bg
+$button-primary: $teal
+$button-primary-hover: lighten($button-primary, 10%)
+
+
+
+/* Common */
+body
+  padding: 0
+  margin: 0
+  font-family: Sans
+  font-size: 1rem
+  color: $body-text
+  background-color: $body-bg
+
+/* Color and enlarge buttons */
+button.primary, a.link-button
+  font-size: 1rem
+  color: $button-text
+  background-color: $button-primary
+  padding: 0.5em
+  border: $body-text solid 1px
+  border-radius: $border-radius
+  transition: 0.3s background-color
+  cursor: pointer
+
+  &:hover
+    background-color: $button-primary-hover
+
+a.link-button
+  display: inline-block
+  text-decoration: none
+
+
+
+/* Forms */
+/* Show labels, inputs, & errors in side-by-side columns
+label
+  display: flex
+  align-items: center
+  margin-bottom: 1em
+
+  > div
+    width: 25%
+    text-align: right
+    font-weight: bold
+
+  > input
+    width: 33%
+    margin-left: 1em
+    line-height: 1
+    font-size: 1rem
+    border: 1px solid $body-text
+    border-radius: $border-radius
+    padding: 0.35em 0.5em
+    background-color: $input-bg
+    // Transition the focus highlights
+    transition: 0.3s border-color, 0.3s box-shadow
+
+    // Disable the default outline, use the border color & a box shadow instead
+    &:focus
+      outline: 0
+      border-color: $input-focus
+      box-shadow: inset 0 1px 1px rgba($body-bg, 0.075), 0 0 $input-focus-spread rgba($input-focus, 0.8)
+
+  > ul
+    font-weight: bold
+    font-size: 0.8rem
+    list-style: none
+    padding: 0
+    margin: 0 0 0 1em
+    max-width: 35%
+
+  // Color the error text & input focus highlight
+  &.error
+    color: $input-error
+    > input
+      outline: 0
+      border-color: $input-error
+      &:focus
+        box-shadow: inset 0 1px 1px rgba($body-bg, 0.075), 0 0 $input-focus-spread rgba($input-error, 0.8)
+
+
+  // Larger label & input widths on medium screens, with errors below them
+  @media screen and (max-width: 800px)
+    &
+      flex-wrap: wrap
+    & > div
+      width: 33%
+    & > input
+      width: 50%
+    & > ul
+      flex-basis: 83%
+      max-width: 83%
+      margin-top: 0.5em
+      text-align: right
+
+
+  // Stack label above inputs & errors below them on smaller screens
+  @media screen and (max-width: 450px)
+    &
+      flex-direction: column
+      align-items: flex-start
+    & > div
+      width: 100%
+      text-align: left
+      padding-bottom: 0.25em
+    & > input
+      width: 100%
+      margin-left: 0
+    & > ul
+      flex-basis: 0
+      max-width: 100%
+      margin-left: 0
+      text-align: left
+
+/* Show the general form errors in a box */
+form > p.form-errors
+  color: $input-error
+  background-color: darken($body-bg, 10%)
+  padding: 0.75em 1em
+  border: solid 1px $input-error
+  border-radius: $border-radius
+
+/* Show success text in a box as well */
+p.success
+  color: $green
+  background-color: mix(darken($body-bg, 2%), $green, 92.5%)
+  padding: 0.75em 1em
+  border: solid 1px $green
+  border-radius: $border-radius
+
+
+
+/* Site Navigation */
+/* Dark, nearly full-width navbar */
+nav
+  color: $nav-text
+  background-color: $nav-bg
+  display: flex
+  margin: 0
+  padding: 0 2.5%
+  width: 95%
+  height: 2.5rem
+
+  /* Centered, full-height nav links */
+  a, a:visited
+    color: $nav-text
+    display: inline-flex
+    align-items: center
+    padding: 0 1rem
+    text-decoration: none
+    height: 100%
+    /* Required for hover underline positioning */
+    position: relative
+    /* Transition backgrond color changes during hover */
+    transition: 0.3s background-color
+
+    /* Lighter color for current page */
+    &.active
+      background-color: $nav-active-bg
+
+    /* Contrasting color on hover */
+    &:active, &:hover
+      background-color: $nav-hover-bg
+
+    /* Show underline highlight when hovering using :after element */
+    > span::after
+      background-color: $nav-hover-line
+      content: ''
+      width: 100%
+      height: 7.5%
+      position: absolute
+      bottom: 0
+      left: 0
+      transition: 0.3s opacity
+      opacity: 0
+
+    &:active > span::after, &:hover > span::after
+      opacity: 1
+
+  /* Larger site/brand/homepage link w/ no hover effects */
+  a.brand
+    font-size: 1.1rem
+    font-weight: bold
+    padding: 0
+    margin-right: 0.75em
+
+    &:active, &:hover
+      color: inherit
+      background-color: inherit
+
+
+
+/* Page Content */
+body > div > div.content
+  margin: 0 auto
+  padding-bottom: 1rem
+  max-width: 95%
+
+  @media screen and (min-width: 360px)
+    max-width: 90%
+
+  @media screen and (min-width: 1400px)
+    max-width: 1250px
