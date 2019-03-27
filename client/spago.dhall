@@ -3,7 +3,7 @@ Welcome to a Spago project!
 You can edit this file as you like.
 -}
 { name =
-    "my-project"
+    "quickbooks-for-communes"
 , dependencies =
     [ "affjax"
     , "argonaut-codecs"

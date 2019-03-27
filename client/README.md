@@ -10,8 +10,7 @@ To build the Purescript app:
 
 ```sh
 npm install
-npx spago install
-npx spago build
+npm run build
 ```
 
 You can rebuild on file changes:
