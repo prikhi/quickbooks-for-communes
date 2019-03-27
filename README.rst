@@ -120,6 +120,14 @@ tell your QuickBooks computer to trust it:
 Documentation
 #############
 
+You can build the client's documentation with ``npm``::
+
+   cd client
+   npm run docs
+
+The documentation will be placed in ``/client/generated-docs/index.html``.
+
+
 You can build the server's package documentation & open it in your web
 browser::
 
