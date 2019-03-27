@@ -8,12 +8,43 @@ server that communicates with QuickBooks Desktop using the `QuickBooks
 WebConnector`_.
 
 The frontend will present Communards with transaction logs for relevant
-Accounts as well as forms for entering their Credit Card purchases, Trip
-entries, or Transfers.
+Accounts as well as forms for entering their Credit Card purchases, Town Trips,
+or Internal Transfers.
 
 This is still in the alpha stage, but under active development.
 
 .. _QuickBooks WebConnector: https://developer.intuit.com/app/developer/qbdesktop/docs/get-started/get-started-with-quickbooks-web-connector
+
+
+
+Client
+######
+
+We use `Spago`_ to build the client code & `Parcel`_ to bundle & serve the UI
+during development.
+
+.. code:: bash
+
+   cd client
+   npm install
+   npm run build
+   npm run serve
+
+You can also watch the source files and rebuild the code when they change:
+
+.. code:: bash
+
+   npm run watch
+
+To assemble the code, styles, & ``index.html`` file for production:
+
+.. code:: bash
+
+   npm run dist
+
+.. _Spago: https://github.com/spacchetti/spago
+.. _Parcel: https://parceljs.org/
+
 
 
 Server

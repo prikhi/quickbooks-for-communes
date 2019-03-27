@@ -8,6 +8,7 @@
     "build": "spago bundle",
     "watch": "spago bundle -w",
     "serve": "node dev-server.js",
+    "dist": "spago bundle && parcel build src/index.html",
     "pscid:build": "spago build"
   },
   "author": "",
