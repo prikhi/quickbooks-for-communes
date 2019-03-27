@@ -50,7 +50,12 @@ import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( encodeUtf8
                                                 , decodeUtf8
                                                 )
-import           Data.Time                      ( getCurrentTime )
+import           Data.Time                      ( UTCTime
+                                                , TimeZone(timeZoneSummerOnly)
+                                                , getCurrentTime
+                                                , getTimeZone
+                                                , addUTCTime
+                                                )
 import           Data.UUID                      ( UUID )
 import           Data.Version                   ( showVersion )
 import           Database.Persist.Sql           ( (=.)
@@ -79,6 +84,7 @@ import           DB.Fields                      ( UUIDField(..)
 import           Network.Wai                    ( Application )
 import           Paths_qbfc                     ( version )
 import           QuickBooks.QBXML               ( Request(AccountQuery)
+                                                , AccountQueryFilters(..)
                                                 , Response(AccountQueryResponse)
                                                 , AccountData(..)
                                                 , ListReference(..)
@@ -109,6 +115,7 @@ import           Types                          ( AppEnv(..)
                                                 , runDB
                                                 )
 import qualified Validation                    as V
+
 
 -- | The API server as a WAI Application.
 app :: AppEnv -> Application
@@ -238,19 +245,20 @@ accountQuery r = case r of
                 Just filename -> return $ CompanyFile filename
         return $ AuthenticateResp ticket authResult Nothing Nothing
     InitialSendRequestXML ticket _ _ _ filename _ _ _ ->
-        runDB
-            $   validateTicket ticket
-            >>= \case
-                    Nothing -> return $ SendRequestXMLResp $ Left ()
-                    Just (Entity sessionId _, Entity companyId company) -> do
-                        when (noStoredFileName company) $ update
-                            companyId
-                            [CompanyFileName =. Just filename]
-                        update sessionId [SessionStatus_ =. RequestedAccounts]
-                        -- TODO: Build query w/ filter for modified time
-                        -- greater than companyLastSyncTime(if not-nothing)
-                        liftIO $ print r
-                        return $ SendRequestXMLResp $ Right AccountQuery
+        runDB $ validateTicket ticket >>= \case
+            Nothing -> return $ SendRequestXMLResp $ Left ()
+            Just (Entity sessionId _, Entity companyId company) -> do
+                when (noStoredFileName company)
+                    $ update companyId [CompanyFileName =. Just filename]
+                update sessionId [SessionStatus_ =. RequestedAccounts]
+                lastSyncTime <- maybe (return Nothing) adjustSyncTime
+                    $ companyLastSyncTime company
+                return
+                    $   SendRequestXMLResp
+                    $   Right
+                    $   AccountQuery
+                    $   AccountQueryFilters
+                    <$> lastSyncTime
     ReceiveResponseXML ticket resp -> runDB (validateTicket ticket) >>= \case
         Just (Entity sessionId _, Entity companyId _) -> case resp of
             AccountQueryResponse accounts -> do
@@ -348,6 +356,18 @@ accountQuery r = case r of
                 , SessionStatus_ =. Completed
                 ]
             >> return (ConnectionErrorResp "done")
+
+    -- | Quickbook's doesn't use DST so our sync times during the summer
+    -- will be an hour behind Quickbook's modified times, causing
+    -- Quickbooks to return extraneous accounts. This function bumps up the
+    -- sync time by an hour if necessary.
+    adjustSyncTime :: MonadIO m => UTCTime -> m (Maybe UTCTime)
+    adjustSyncTime syncTime = do
+        isSummer <- liftIO $ timeZoneSummerOnly <$> getTimeZone syncTime
+        return . Just $ if isSummer
+            then fromInteger (60 * 60) `addUTCTime` syncTime
+            else syncTime
+
 
 
 

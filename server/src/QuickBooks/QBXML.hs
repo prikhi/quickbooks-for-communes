@@ -14,6 +14,7 @@ requests, feel free to open up an issue on github.
 module QuickBooks.QBXML
     ( -- * qbXML Requests
       Request(..)
+    , AccountQueryFilters(..)
     , buildRequest
 
       -- * qbXML Responses
@@ -73,6 +74,8 @@ import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( decodeUtf8 )
 import           Data.Time                      ( Day
                                                 , UTCTime
+                                                , formatTime
+                                                , defaultTimeLocale
                                                 )
 import           GHC.Generics                   ( Generic )
 import           Parser                         ( parseError
@@ -98,6 +101,7 @@ import           Text.XML.Generator             ( Xml
                                                 , xrender
                                                 , xelem
                                                 , xelemEmpty
+                                                , xelemWithText
                                                 , xattr
                                                 )
 import           XML                            ( FromXML(..) )
@@ -105,9 +109,16 @@ import           XML                            ( FromXML(..) )
 
 -- Requests
 
-data Request
-    = AccountQuery
-    deriving (Show)
+newtype Request
+    = AccountQuery (Maybe AccountQueryFilters)
+    deriving (Show, Read)
+
+newtype AccountQueryFilters
+    = AccountQueryFilters
+        { aqFromModifiedDate :: UTCTime
+        -- ^ Note: Times in QuickBooks are not adjusted for DST!
+        }
+    deriving (Show, Read)
 
 -- | Build the Request's XML into a Text value.
 --
@@ -115,7 +126,14 @@ data Request
 -- not like the output format of the 'xrender' function.
 buildRequest :: Request -> Text
 buildRequest r = wrapper $ case r of
-    AccountQuery -> xelemEmpty "AccountQueryRq"
+    AccountQuery mFilters -> case mFilters of
+        Nothing -> xelemEmpty "AccountQueryRq"
+        Just filters ->
+            xelem "AccountQueryRq"
+                $ xelemWithText "FromModifiedDate"
+                $ T.pack
+                $ formatTime defaultTimeLocale "%FT%T-00:00"
+                $ aqFromModifiedDate filters
   where
     wrapper :: Xml Elem -> Text
     wrapper el =
