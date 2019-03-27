@@ -1,19 +1,19 @@
-server/*.cabal
-server/.stack-work
-server/*.pem
-server/settings.yaml
+/server/*.cabal
+/server/.stack-work
+/server/*.pem
+/server/settings.yaml
 
 
-client/bower_components/
-client/node_modules/
-client/.pulp-cache/
-client/output/
-client/generated-docs/
-client/.psc-package/
-client/.psc*
-client/.purs*
-client/.psa*
-client/.spago
-client/index.js
-client/.cache 
-client/dist
+/client/bower_components/
+/client/node_modules/
+/client/.pulp-cache/
+/client/output/
+/client/generated-docs/
+/client/.psc-package/
+/client/.psc*
+/client/.purs*
+/client/.psa*
+/client/.spago
+/client/index.js
+/client/.cache
+/client/dist
