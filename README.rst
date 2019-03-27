@@ -1,19 +1,46 @@
-#########################
+#######################
 QuickBooks for Communes
-#########################
+#######################
 
 QuickBooks for Communes is a web application built specifically for
-non-Accountant communards, consisting of an Elm frontend and a Haskell API
-server that communicates with QuickBooks Desktop using the `QuickBooks
+non-Accountant communards, consisting of a Purescript frontend and a Haskell
+API server that communicates with QuickBooks Desktop using the `QuickBooks
 WebConnector`_.
+
+This is still in the alpha stage, but under active development.
 
 The frontend will present Communards with transaction logs for relevant
 Accounts as well as forms for entering their Credit Card purchases, Town Trips,
 or Internal Transfers.
 
-This is still in the alpha stage, but under active development.
-
 .. _QuickBooks WebConnector: https://developer.intuit.com/app/developer/qbdesktop/docs/get-started/get-started-with-quickbooks-web-connector
+
+
+
+Goals
+#####
+
+Eventually we'd like to have support for:
+
+* Forms for communards to account for their Trips, Credit Card Purchases, &
+  Internal Transfers.
+* A workflow for accountants to approve entries before they are pushed to
+  QuickBooks.
+* Public views of approved entries & their receipts.
+* A Chart of Accounts designed for communards, along with detailed account
+  ledgers.
+* Support for attaching receipts to entries.
+* User accounts for communards, allowing them go back and edit their
+  non-approved entries.
+* Tracking of communards membership dates, used to pay monthly & yearly
+  stipends.
+
+
+We don't plan on:
+
+* Supporting multiple languages.
+* Supporting multiple currencies.
+* Managing existing QuickBooks data. We only want to push data *to* QuickBooks.
 
 
 
