@@ -50,6 +50,7 @@ Account
     listId Text
     type AccountType
     parent AccountId Maybe
+    description Text
     isActive Bool
     company CompanyId
     modifiedTime UTCTime

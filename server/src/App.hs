@@ -503,6 +503,7 @@ updateAccounts companyId accounts = do
         , accountListId       = listID accountReference
         , accountType
         , accountParent
+        , accountDescription  = fromMaybe "" description
         , accountIsActive     = isActive
         , accountModifiedTime = modifiedAt
         , accountCompany      = companyId
