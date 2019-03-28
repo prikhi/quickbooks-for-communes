@@ -17,6 +17,7 @@ addons:
     packages:
       - libgmp-dev
       - python-docutils
+      - python-pygments
 
 install:
   # Download and unpack the stack executable
