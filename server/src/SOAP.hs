@@ -1,5 +1,4 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {- | This module contains a "SOAP" content type for Servant Routes that
@@ -8,13 +7,12 @@ assumes that requests & responses are simple XML embedded in SOAP @Envelope@
 -}
 module SOAP where
 
-import           Data.Bifunctor                 ( first )
+import           Data.Bifunctor                 ( bimap )
 import           Data.Text                      ( Text )
 import           Data.Typeable                  ( Typeable )
 import qualified Network.HTTP.Media            as M
 import           Parser                         ( FromXML(..)
-                                                , Parser
-                                                , runParser
+                                                , parseDocumentRoot
                                                 , parseError
                                                 , getElement
                                                 , matchName
@@ -38,8 +36,7 @@ import           Text.XML.Generator             ( Xml
 import           Text.XML                       ( Node(NodeElement)
                                                 , Element(..)
                                                 , Name
-                                                , documentRoot
-                                                , parseLBS
+                                                , parseLBS_
                                                 , def
                                                 )
 import           XML                            ( ToXML(..) )
@@ -56,25 +53,24 @@ instance Accept SOAP where
 
 -- | Parse the XML embedded in a SOAP Envelope/Body wrapper.
 instance (FromXML a) => MimeUnrender SOAP a where
-    mimeUnrender _ bs = either (Left . show) (first show . flip runParser parseFromSoapEnvelope . documentRoot)
-        $ parseLBS def bs
+    mimeUnrender _ bs =
+        bimap show fromSOAPResponse . parseDocumentRoot $ parseLBS_ def bs
 
 -- | Render the type as XML with a SOAP Envelope/Body wrapper.
 instance (ToXML a) => MimeRender SOAP a where
     mimeRender _ = xrender . doc defaultDocInfo . soapWrapper . toXML
 
 
--- | Parse a type out of XML embedded in a SOAP @Envelope@ and @Body@.
-parseFromSoapEnvelope :: FromXML a => Parser a
-parseFromSoapEnvelope =
-    matchName (soapName "Envelope")
-        $   find (soapName "Body")
-        $   elementNodes
-        <$> getElement
-        >>= \case
-                [NodeElement bodyContents] -> descend fromXML bodyContents
-                _                          -> parseError "Invalid Body Contents"
+-- | A wrapper for SOAP responses embeded in Envelope & Body elements.
+newtype SOAPResponse a
+    = SOAPResponse { fromSOAPResponse :: a }
 
+instance FromXML a => FromXML (SOAPResponse a) where
+    fromXML = matchName (soapName "Envelope") $ find (soapName "Body") $ do
+        el <- getElement
+        case elementNodes el of
+            [NodeElement bodyContents] -> descend fromXML bodyContents
+            _ -> parseError "Invalid Body Contents"
 
 soapName :: Text -> Name
 soapName = withNamespace "http://schemas.xmlsoap.org/soap/envelope/"
