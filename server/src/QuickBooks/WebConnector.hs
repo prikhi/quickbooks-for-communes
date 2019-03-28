@@ -34,7 +34,9 @@ import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
 import           Parser                         ( FromXML(..)
                                                 , Parser
+                                                , ParsingErrorType(..)
                                                 , parseError
+                                                , throwParsingError
                                                 , matchName
                                                 , oneOf
                                                 , find
@@ -314,7 +316,7 @@ parseUUID = do
     str <- parseContent
     case UUID.fromText (dropBrackets str) of
         Just val -> return val
-        Nothing  -> parseError $ "Expected {UUID}, got: " <> str
+        Nothing  -> throwParsingError $ ContentParsingError "{UUID}" str
     where dropBrackets = T.reverse . T.drop 1 . T.reverse . T.drop 1
 
 -- | Valid responses for callbacks.

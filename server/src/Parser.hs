@@ -17,7 +17,10 @@ module Parser
     , ParserContext(..)
     , runParserContext
     , ParsingError(..)
+    , ParsingErrorType(..)
+    , prettyParsingError
     , parseError
+    , throwParsingError
     , liftEither
       -- * Querying Parsing Context
     , getContext
@@ -72,6 +75,7 @@ import           Data.Text                      ( Text
                                                 , unpack
                                                 , pack
                                                 )
+import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( encodeUtf8 )
 import           Data.Time                      ( UTCTime
                                                 , Day
@@ -131,21 +135,107 @@ data ParserContext
 -- | An error that has occured during XML parsing.
 data ParsingError
     = ParsingError
-        { errorMessage :: Text
+        { errorType :: ParsingErrorType
+        , errorCursor :: Element
         , parentNodes :: [Name]
         }
+    deriving (Show)
 
 instance Exception ParsingError
 
+-- | Specific errors that can occur.
+data ParsingErrorType
+    = -- | Just attach some message text to the error.
+      GenericParsingError Text
+      -- | The current element's name does not match the expected name.
+    | NameMismatch Name
+      -- | Could not find the element with the given name.
+    | ElementNotFound Name
+      -- | 'oneOf' was passed an empty list of 'Parser's.
+    | NoParsersGiven
+      -- | 'at' was passed an empty list of 'Name's.
+    | NoNamesGiven
+      -- | Could not parse the text content of the current element.
+    | ContentParsingError
+        Text
+        -- ^ Expected format
+        Text
+        -- ^ Actual content
+    -- | Could not parse the text content of the curent element as XML.
+    | XMLContentParsingError
+        Text
+        -- ^ XML Parsing Error
+        Text
+        -- ^ Actual Content
+    -- | Element contained more than just a single NodeContent value.
+    | ExpectedOnlyText
+    -- | Tried to match a specific list of child node types.
+    | UnexpectedChildNodes Text
+    deriving (Show, Eq)
+
 -- | Show the parent node hierarchy as names separated by @ > @ signs
--- followed by the error message enclosed in braces.
-instance Show ParsingError where
-    show err =
-        unpack $
-            intercalate " > " (map nameLocalName $ parentNodes err)
-            <> " { "
-            <> errorMessage err
-            <> " }"
+-- followed by a descriptive error message enclosed in braces.
+prettyParsingError :: ParsingError -> Text
+prettyParsingError err = wrapper $ case errorType err of
+    GenericParsingError message -> [message]
+    NameMismatch expected ->
+        [ "Element name does not match expected name of:"
+        , "\t" <> prettyName expected
+        ]
+    ElementNotFound desiredName ->
+        [ "Expected child element with name: " <> prettyName desiredName
+            , "Actual children:"
+            ]
+            <> map (\n -> "\t" <> prettyName n) childNames
+    NoParsersGiven ->
+        ["No parsers to attempt: `oneOf` was passed an empty list of parsers"]
+    NoNamesGiven ->
+        ["No names to descend into: `at` was passed an empty list of names"]
+    ContentParsingError expectedFormat actual ->
+        [ "Expected contents with format: " <> expectedFormat
+        , "Actual contents was: " <> actual
+        ]
+    XMLContentParsingError xmlError actual ->
+        [ "Expected text contents with escaped XML document"
+        , "XML Parsing Error: " <> xmlError
+        , "Actual contents: " <> actual
+        ]
+    ExpectedOnlyText ->
+        "Expected only text content, but other nodes were present."
+            : map ("\t" <>) describeAllChildren
+    UnexpectedChildNodes expectedFormat ->
+        "Expected child node(s) to be: "
+            <> expectedFormat
+            :  "But got:"
+            :  map ("\t" <>) describeAllChildren
+  where
+    wrapper :: [Text] -> Text
+    wrapper body =
+        parentHierarchy <> " {\n" <> T.unlines (map ("\t" <>) body) <> "\n}"
+    parentHierarchy :: Text
+    parentHierarchy = intercalate " > " (map nameLocalName $ parentNodes err)
+    prettyName :: Name -> Text
+    prettyName n =
+        maybe "" (\ns -> "{" <> ns <> "}") (nameNamespace n) <> nameLocalName n
+    childNames :: [Name]
+    childNames = foldr
+        (\n acc -> case n of
+            NodeElement el -> elementName el : acc
+            _              -> acc
+        )
+        []
+        (elementNodes $ errorCursor err)
+    describeAllChildren :: [Text]
+    describeAllChildren =
+        map
+                (\case
+                    NodeContent     t -> "Text: " <> t
+                    NodeComment     c -> "Comment: " <> c
+                    NodeInstruction i -> "Instruction: " <> pack (show i)
+                    NodeElement e -> "Element: " <> prettyName (elementName e)
+                )
+            $ elementNodes
+            $ errorCursor err
 
 -- | Run a Parser on an Element, returning an error or the parsed value.
 runParser :: Element -> Parser a -> Either ParsingError a
@@ -156,13 +246,19 @@ runParserContext :: ParserContext -> Parser a -> Either ParsingError a
 runParserContext ctx parser =
     runIdentity $ runExceptT $ runReaderT (fromParser parser) ctx
 
--- | Signal a parsing error with the given message.
+-- | Signal a generic parsing error with the given message.
 parseError :: Text -> Parser a
-parseError msg = do
+parseError = throwParsingError . GenericParsingError
+
+-- | Throw a specific 'ParsingErrorType'.
+throwParsingError :: ParsingErrorType -> Parser a
+throwParsingError errType = do
+    element <- getElement
     parents <- getHierarchy
     Parser $ lift $ ExceptT $ Identity $ Left $ ParsingError
-        { errorMessage = msg
-        , parentNodes  = parents
+        { errorType   = errType
+        , errorCursor = element
+        , parentNodes = parents
         }
 
 -- | Lift an Either into a Parser by throwing a ParsingError if necessary.
@@ -204,7 +300,7 @@ oneOf :: [Parser a] -> Parser a
 oneOf ps = untilSucceeds (ps, []) >>= \case
     Right val  -> return val
     Left  errs -> case findLongest errs of
-        Nothing  -> parseError "No parsers to attempt"
+        Nothing  -> throwParsingError NoParsersGiven
         Just err -> Parser (throwError err)
   where
     -- Attempt parsers until one succeeds or all have been tried,
@@ -249,7 +345,7 @@ matchName name parser = do
     el <- getElement
     if elementName el == name
         then parser
-        else parseError $ "Expected Element with Name: " <> nameLocalName name
+        else throwParsingError $ NameMismatch name
 
 -- | Descend into an Element & parse it. The 'Name' of the element we
 -- descend into is prepended to the 'hierarchy' of the given Parser's
@@ -267,7 +363,7 @@ descend parser el = Parser $ local
 -- unreachable.
 at :: [Name] -> Parser a -> Parser a
 at n p = case n of
-    []            -> parseError "No name to descend into"
+    []            -> throwParsingError NoNamesGiven
     [    name]    -> find name p
     name :   rest -> find name (at rest p)
 
@@ -276,7 +372,7 @@ at n p = case n of
 -- Throws an error if no matching children are found.
 find :: Name -> Parser a -> Parser a
 find name parser = getElementsByName name >>= \case
-    []     -> parseError $ "Could Not Find Element: " <> nameLocalName name
+    []     -> throwParsingError $ ElementNotFound name
     el : _ -> descend parser el
 
 -- | Parse all children with matching names using the given 'Parser'.
@@ -310,7 +406,7 @@ parseBool = parseContent >>= \case
     "1"     -> return True
     "false" -> return False
     "0"     -> return False
-    s       -> parseError $ "Expected an xsd:bool, got: " <> s
+    s       -> throwParsingError $ ContentParsingError "xsd:bool" s
 
 -- | Pare an @xsd:integer@ from the Element contents.
 parseInteger :: Parser Integer
@@ -321,9 +417,10 @@ parseInteger = unpack <$> parseContent >>= liftEither . readEither . \case
 -- | Parse an @xsd:decimal@ from the Element contents.
 parseDecimal :: Parser Rational
 parseDecimal = do
-    str <- dropWhile (== '+') . unpack <$> parseContent
-    case listToMaybe (readSigned readFloat str) of
-        Nothing -> parseError $ "Expected an xsd:decimal, got: " <> pack str
+    text <- parseContent
+    let str = T.dropWhile (== '+') text
+    case listToMaybe (readSigned readFloat $ unpack str) of
+        Nothing -> throwParsingError $ ContentParsingError "xsd:decimal" str
         Just (val, _) -> return val
 
 -- | Parse an @xsd:date@ from the Element contents.
@@ -336,8 +433,9 @@ parseDate = do
     let parsed =
             readDate "%F%z" text <|> readDate "%FZ" text <|> readDate "%F" text
     case parsed of
-        Just t  -> return t
-        Nothing -> parseError $ "Expected an xsd:date type, got: " <> pack text
+        Just t -> return t
+        Nothing ->
+            throwParsingError $ ContentParsingError "xsd:date" $ pack text
 
 -- | Parse an @xsd:dateTime@ from the Element's contents.
 --
@@ -353,7 +451,7 @@ parseDatetime = do
     case parsed of
         Just t -> return t
         Nothing ->
-            parseError $ "Expected an xsd:datetime type, got: " <> pack text
+            throwParsingError $ ContentParsingError "xsd:datetime" $ pack text
 
 readDate :: ParseTime a => String -> String -> Maybe a
 readDate = parseTimeM True defaultTimeLocale
@@ -365,10 +463,7 @@ parseContent = do
     el <- getElement
     case elementNodes el of
         [NodeContent t] -> return t
-        _ ->
-            parseError
-                $  "Expected NodeContent Singleton in Element: "
-                <> nameLocalName (elementName el)
+        _               -> throwParsingError ExpectedOnlyText
 
 -- | Get the Element's content, parse it into an XML 'Text.XML.Document',
 -- then run the given Parser on the 'documentRoot'.
@@ -382,9 +477,7 @@ parseContentWith p = do
     text <- parseContent
     case parseLBS def $ LBS.fromStrict $ encodeUtf8 text of
         Left err ->
-            parseError
-                $  "Expected NodeContent Containing Valid XML Document, got: "
-                <> pack (show err)
+            throwParsingError $ XMLContentParsingError (pack $ show err) text
         Right xmlDoc -> descend p $ documentRoot xmlDoc
 
 

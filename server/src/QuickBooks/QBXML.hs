@@ -79,7 +79,8 @@ import           Data.Time                      ( Day
                                                 )
 import           GHC.Generics                   ( Generic )
 import           Parser                         ( FromXML(..)
-                                                , parseError
+                                                , ParsingErrorType(..)
+                                                , throwParsingError
                                                 , matchName
                                                 , oneOf
                                                 , find
@@ -561,7 +562,7 @@ instance FromXML AssignClass where
         "Accounts" -> return Accounts
         "Items"    -> return Items
         "Names"    -> return Names
-        s          -> parseError $ "Expected AssignClass, got: " <> s
+        s          -> throwParsingError $ ContentParsingError "AssignClass" s
 
 
 -- | How finance charges are assessed against customers for late payments.
@@ -731,7 +732,7 @@ instance FromXML SummaryReportBasis where
     fromXML = parseContent >>= \case
         "Accrual" -> return AccrualBasis
         "Cash"    -> return CashBasis
-        s         -> parseError $ "Expected SummaryReportBasis, got: " <> s
+        s         -> throwParsingError $ ContentParsingError "SummaryReportBasis" s
 
 
 -- | Settings for sales & customers.
@@ -831,7 +832,7 @@ instance FromXML SalesTaxFrequency where
         "Monthly"   -> return MonthlyTaxReport
         "Quarterly" -> return QuarerlyTaxReport
         "Annually"  -> return AnnualTaxReport
-        s           -> parseError $ "Expected SalesTaxFrequency, got: " <> s
+        s           -> throwParsingError $ ContentParsingError "SalesTaxFrequency" s
 
 
 -- | Time-tracking settings for the company file.

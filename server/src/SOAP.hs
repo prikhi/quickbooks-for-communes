@@ -12,8 +12,9 @@ import           Data.Text                      ( Text )
 import           Data.Typeable                  ( Typeable )
 import qualified Network.HTTP.Media            as M
 import           Parser                         ( FromXML(..)
+                                                , ParsingErrorType(..)
                                                 , parseDocumentRoot
-                                                , parseError
+                                                , throwParsingError
                                                 , getElement
                                                 , matchName
                                                 , find
@@ -70,7 +71,7 @@ instance FromXML a => FromXML (SOAPRequest a) where
         el <- getElement
         case elementNodes el of
             [NodeElement bodyContents] -> descend fromXML bodyContents
-            _ -> parseError "Invalid Body Contents"
+            _ -> throwParsingError $ UnexpectedChildNodes "single element"
 
 soapName :: Text -> Name
 soapName = withNamespace "http://schemas.xmlsoap.org/soap/envelope/"
