@@ -2,6 +2,11 @@
 QuickBooks for Communes
 #######################
 
+.. image:: https://travis-ci.org/prikhi/quickbooks-for-communes.svg?branch=master
+    :target: https://travis-ci.org/prikhi/quickbooks-for-communes
+    :alt: QuickBooks for Communes Build Status
+
+
 QuickBooks for Communes is a web application built specifically for
 non-Accountant communards, consisting of a Purescript frontend and a Haskell
 API server that communicates with QuickBooks Desktop using the `QuickBooks
