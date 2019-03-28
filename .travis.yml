@@ -4,6 +4,8 @@
 language: node_js
 node_js: node
 
+dist: xenial
+
 # Caching so the next build will be fast too.
 cache:
   directories:
@@ -14,6 +16,7 @@ addons:
   apt:
     packages:
       - libgmp-dev
+      - python-docutils
 
 install:
   # Download and unpack the stack executable
@@ -22,4 +25,7 @@ install:
   - travis_retry curl -L https://get.haskellstack.org/stable/linux-x86_64.tar.gz | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
 
 script:
+  # Build the client & server
   - ./manage.hs build
+  # Ensure the README is valid reStructuredText
+  - rst2html --strict README.rst > /dev/null
