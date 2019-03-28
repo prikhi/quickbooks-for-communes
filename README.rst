@@ -49,8 +49,24 @@ We don't plan on:
 
 
 
+Build
+#####
+
+``manage.hs`` is a management script for the project. You can use it to make
+production builds, rebuild the code on file changes, & clean any build
+artifacts.
+
+You need `Stack`_ installed. Then you can simply run ``./manage.hs`` to start
+the development servers. ``./manage.hs build`` will make production builds for
+the server & client, while ``./manage.hs clean`` will remove the built files.
+
+You can also do some lower-level building of the frontend & backend.
+
+.. _Stack: https://docs.haskellstack.org/en/stable/README/
+
+
 Client
-######
+======
 
 We use `Spago`_ & `pscid`_ to build the client code & `Parcel`_ to bundle &
 serve the UI during development.
@@ -66,16 +82,15 @@ The ``watch`` command rebuilds the client when the source files change, and
 ``serve`` starts a development server that builds the styles, serves the index,
 & redirects requests to the ``/api/`` path to the backend server.
 
-To assemble the code, styles, & ``index.html`` file for production, run ``npm run build``.
+To assemble the code, styles, & HTML for production, run ``npm run build``.
 
 .. _Spago: https://github.com/spacchetti/spago
 .. _pscid: https://github.com/kRITZCREEK/pscid
 .. _Parcel: https://parceljs.org/
 
 
-
 Server
-######
+======
 
 We use `Stack`_ to build the server & manage it's dependencies, with a
 ``Makefile`` for running common commands :
@@ -84,9 +99,15 @@ We use `Stack`_ to build the server & manage it's dependencies, with a
 
    cd server
    make run
+   make watch
 
-Configuration is done through YAML files. Some sensible defaults are loaded
-from the ``default-settings.yaml`` file, but this does not contain
+
+
+Configuration
+#############
+
+Server configuration is done through YAML files. Some sensible defaults are
+loaded from the ``default-settings.yaml`` file, but this does not contain
 instance-specific settings. Therefore, you will need to create a
 ``settings.yaml`` file in the ``server`` directory, with at least the following
 fields:
@@ -145,8 +166,6 @@ tell your QuickBooks computer to trust it:
 #. Test the certificate by visiting ``https://qbfc-server.local:3000/cert/``,
    you should see a blank page instead of an TLS error or Insecure Webpage
    warning.
-
-.. _Stack: https://docs.haskellstack.org/en/stable/README/
 
 
 Documentation
