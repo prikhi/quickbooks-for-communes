@@ -12,7 +12,8 @@ import           Data.Bifunctor                 ( first )
 import           Data.Text                      ( Text )
 import           Data.Typeable                  ( Typeable )
 import qualified Network.HTTP.Media            as M
-import           Parser                         ( Parser
+import           Parser                         ( FromXML(..)
+                                                , Parser
                                                 , runParser
                                                 , parseError
                                                 , getElement
@@ -41,9 +42,7 @@ import           Text.XML                       ( Node(NodeElement)
                                                 , parseLBS
                                                 , def
                                                 )
-import           XML                            ( FromXML(..)
-                                                , ToXML(..)
-                                                )
+import           XML                            ( ToXML(..) )
 
 data SOAP deriving Typeable
 

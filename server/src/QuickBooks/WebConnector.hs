@@ -32,7 +32,8 @@ import           Data.Text                      ( Text
 import qualified Data.Text                     as T
 import           Data.UUID                      ( UUID )
 import qualified Data.UUID                     as UUID
-import           Parser                         ( Parser
+import           Parser                         ( FromXML(..)
+                                                , Parser
                                                 , parseError
                                                 , matchName
                                                 , oneOf
@@ -61,9 +62,7 @@ import           Text.XML.Generator             ( Xml
                                                 , namespace
                                                 )
 import           Text.XML                       ( Name )
-import           XML                            ( FromXML(..)
-                                                , ToXML(..)
-                                                )
+import           XML                            ( ToXML(..) )
 
 -- Config File
 

@@ -78,7 +78,8 @@ import           Data.Time                      ( Day
                                                 , defaultTimeLocale
                                                 )
 import           GHC.Generics                   ( Generic )
-import           Parser                         ( parseError
+import           Parser                         ( FromXML(..)
+                                                , parseError
                                                 , matchName
                                                 , oneOf
                                                 , find
@@ -104,7 +105,6 @@ import           Text.XML.Generator             ( Xml
                                                 , xelemWithText
                                                 , xattr
                                                 )
-import           XML                            ( FromXML(..) )
 
 
 -- Requests

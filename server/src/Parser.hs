@@ -8,8 +8,11 @@ contents.
 
 -}
 module Parser
-    ( -- * Running Parsers
-      Parser
+    ( -- * Typeclass
+      FromXML(..)
+    , parseDocumentRoot
+      -- * Running Parsers
+    , Parser
     , runParser
     , ParserContext(..)
     , runParserContext
@@ -81,13 +84,24 @@ import           Numeric                        ( readFloat
                                                 , readSigned
                                                 )
 import           Text.Read                      ( readEither )
-import           Text.XML                       ( Node(..)
+import           Text.XML                       ( Document(..)
+                                                , Node(..)
                                                 , Element(..)
                                                 , Name(..)
                                                 , parseLBS
                                                 , def
                                                 , documentRoot
                                                 )
+
+-- CLASS
+
+-- | Parse XML into a type using the `xml-conduits` package.
+class FromXML a where
+    fromXML :: Parser a
+
+parseDocumentRoot :: FromXML a => Document -> Either ParsingError a
+parseDocumentRoot doc = runParser (documentRoot doc) fromXML
+
 
 -- RUNNING
 
