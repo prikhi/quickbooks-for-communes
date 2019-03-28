@@ -99,6 +99,7 @@ import           Text.XML                       ( Document(..)
 class FromXML a where
     fromXML :: Parser a
 
+-- | Parse the root elment of an XML Document.
 parseDocumentRoot :: FromXML a => Document -> Either ParsingError a
 parseDocumentRoot doc = runParser (documentRoot doc) fromXML
 

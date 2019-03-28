@@ -54,7 +54,7 @@ instance Accept SOAP where
 -- | Parse the XML embedded in a SOAP Envelope/Body wrapper.
 instance (FromXML a) => MimeUnrender SOAP a where
     mimeUnrender _ bs =
-        bimap show fromSOAPResponse . parseDocumentRoot $ parseLBS_ def bs
+        bimap show fromSOAPRequest . parseDocumentRoot $ parseLBS_ def bs
 
 -- | Render the type as XML with a SOAP Envelope/Body wrapper.
 instance (ToXML a) => MimeRender SOAP a where
@@ -62,10 +62,10 @@ instance (ToXML a) => MimeRender SOAP a where
 
 
 -- | A wrapper for SOAP responses embeded in Envelope & Body elements.
-newtype SOAPResponse a
-    = SOAPResponse { fromSOAPResponse :: a }
+newtype SOAPRequest a
+    = SOAPRequest { fromSOAPRequest :: a }
 
-instance FromXML a => FromXML (SOAPResponse a) where
+instance FromXML a => FromXML (SOAPRequest a) where
     fromXML = matchName (soapName "Envelope") $ find (soapName "Body") $ do
         el <- getElement
         case elementNodes el of
