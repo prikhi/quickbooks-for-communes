@@ -161,12 +161,14 @@ data ParsingErrorType
         -- ^ Expected format
         Text
         -- ^ Actual content
+
     -- | Could not parse the text content of the curent element as XML.
     | XMLContentParsingError
         Text
         -- ^ XML Parsing Error
         Text
         -- ^ Actual Content
+
     -- | Element contained more than just a single NodeContent value.
     | ExpectedOnlyText
     -- | Tried to match a specific list of child node types.
