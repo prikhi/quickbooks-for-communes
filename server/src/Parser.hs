@@ -16,6 +16,7 @@ module Parser
     , runParser
     , ParserContext(..)
     , runParserContext
+      -- * Parsing Errors
     , ParsingError(..)
     , ParsingErrorType(..)
     , prettyParsingError
