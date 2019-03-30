@@ -13,12 +13,28 @@ module DB.Schema
     -- * Migrations
       migrateAll
     -- * Database Types
+    -- ** QuickBooks Sessions
     , Session(..)
     , SessionId
+    -- ** Accounts
     , Account(..)
     , AccountId
+    -- ** Companies
     , Company(..)
     , CompanyId
+    -- ** Entries
+    -- *** Trips
+    , StoreAccount(..)
+    , StoreAccountId
+    , Trip(..)
+    , TripId
+    , TripStop(..)
+    , TripStopId
+    , TripTransaction(..)
+    , TripTransactionId
+    , StoreCreditTransaction(..)
+    , StoreCreditTransactionId
+    -- ** Misc
     , Unique(..)
     , EntityField(..)
     )
@@ -32,6 +48,7 @@ import           DB.Fields                      ( UUIDField
                                                 , SessionError
                                                 , SessionStatus
                                                 , SessionType
+                                                , EntryStatus
                                                 )
 import           QuickBooks.QBXML               ( AccountType )
 
@@ -43,6 +60,18 @@ Session
     company CompanyId Maybe
     error SessionError Maybe
     UniqueTicket ticket
+    deriving Show Read
+
+
+
+Company
+    name Text
+    user Text
+    password Text
+    fileName Text Maybe
+    lastSyncTime UTCTime Maybe
+    UniqueCompanyName name
+    UniqueCompanyUser user
     deriving Show Read
 
 Account
@@ -57,13 +86,47 @@ Account
     UniqueListId company listId
     deriving Show Read
 
-Company
+
+
+StoreAccount
     name Text
-    user Text
-    password Text
-    fileName Text Maybe
-    lastSyncTime UTCTime Maybe
-    UniqueCompanyName name
-    UniqueCompanyUser user
+    account AccountId
+    deriving Show Read
+
+Trip
+    date UTCTime
+    author Text
+    number Text
+    cashAdvance Rational
+    cashReturned Rational
+    status EntryStatus
+    comment Text
+    company CompanyId
+    deriving Show Read
+
+TripStop
+    trip TripId
+    name Text
+    deriving Show Read
+
+TripTransaction
+    stop TripStopId
+    account AccountId
+    memo Text
+    amount Rational
+    tax Rational
+    total Rational
+    isReturn Bool
+    deriving Show Read
+
+StoreCreditTransaction
+    trip TripId
+    store StoreAccountId
+    account AccountId
+    memo Text
+    amount Rational
+    tax Rational
+    total Rational
+    isReturn Bool
     deriving Show Read
 |]

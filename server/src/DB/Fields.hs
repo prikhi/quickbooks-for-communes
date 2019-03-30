@@ -9,6 +9,8 @@ module DB.Fields
     , SessionError(..)
       -- * Account Fields
     , AccountType(..)
+      -- * Entry Fields
+    , EntryStatus(..)
       -- * Generic Fields
     , UUIDField(..)
     )
@@ -59,6 +61,21 @@ $(derivePersistField "SessionError")
 -- ACCOUNTS
 
 $(derivePersistField "AccountType")
+
+
+-- ENTRIES
+
+-- | What stage is an entry in?
+data EntryStatus
+    = Unapproved
+    -- ^ Submitted by a Communard but not approved by an Accountant
+    | Approved
+    -- ^ Approved by an Accountant but not exported to QuickBooks
+    | Exported
+    -- ^ The entry has been exported to QuickBooks.
+    deriving (Read, Show, Eq)
+
+$(derivePersistField "EntryStatus")
 
 
 -- GENERIC
