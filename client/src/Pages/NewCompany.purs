@@ -153,9 +153,12 @@ render st =
                 ]
             , HH.form [ HE.onSubmit $ HE.input SubmitForm ]
                 [ formErrors $ V.getFormErrors st.errors
-                , input "Company Name" HP.InputText st.name InputName $ errors "name"
-                , input "Username" HP.InputText st.username InputUser $ errors "username"
-                , input "Password" HP.InputPassword st.password InputPass $ errors "password"
+                , input "Company Name" HP.InputText st.name InputName (errors "name")
+                    "For pages & forms"
+                , input "Username" HP.InputText st.username InputUser (errors "username")
+                    "Used with the web connector"
+                , input "Password" HP.InputPassword st.password InputPass (errors "password")
+                    "Used with the web connector"
                 , submitButton "Add Company"
                 ]
             ]
@@ -225,11 +228,15 @@ formErrors errs =
     else
         HH.text ""
 
--- | Render a standard `HH.input` element with a label and error list.
-input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> HH.HTML p (i Unit)
-input label type_ value action errors =
+-- | Render a standard `HH.input` element with a label, help text, and an error
+-- | list.
+input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> String -> HH.HTML p (i Unit)
+input label type_ value action errors helpText =
     HH.label errorClass
-        [ HH.div_ [ HH.text label ]
+        [ HH.div_
+            [ HH.text label
+            , HH.p_ [ HH.text helpText ]
+            ]
         , HH.input $
             [ HP.type_ type_
             , HP.required true

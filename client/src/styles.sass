@@ -67,9 +67,18 @@ label
   margin-bottom: 1em
 
   > div
-    width: 25%
+    width: 33%
     text-align: right
     font-weight: bold
+    margin-top: 0.5em
+    > p
+      font-size: 0.7rem
+      font-weight: normal
+      opacity: 0.8
+      margin-top: 0.125em
+      margin-bottom: 0
+    > p:empty
+      height: 0.7rem
 
   > input
     width: 33%
@@ -79,6 +88,7 @@ label
     border: 1px solid $body-text
     border-radius: $border-radius
     padding: 0.35em 0.5em
+    box-sizing: border-box
     background-color: $input-bg
     // Transition the focus highlights
     transition: 0.3s border-color, 0.3s box-shadow
@@ -108,17 +118,17 @@ label
 
 
   // Larger label & input widths on medium screens, with errors below them
-  @media screen and (max-width: 800px)
+  @media screen and (max-width: 850px)
     &
       flex-wrap: wrap
     & > div
-      width: 33%
+      width: 40%
     & > input
       width: 50%
     & > ul
-      flex-basis: 83%
-      max-width: 83%
-      margin-top: 0.5em
+      flex-basis: 90%
+      max-width: 90%
+      margin-top: 0.25em
       text-align: right
 
 
@@ -131,6 +141,7 @@ label
       width: 100%
       text-align: left
       padding-bottom: 0.25em
+      margin-top: 0
     & > input
       width: 100%
       margin-left: 0
