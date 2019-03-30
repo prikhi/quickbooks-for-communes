@@ -4,7 +4,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
-module Api where
+{- | A description of the API the application serves, as well as API
+specific models/types.
+-}
+module Api
+    ( API
+    , api
+    -- * Frontend Types
+    , FrontendAPI
+    , NewCompany(..)
+    -- * QuickBooks Types
+    , QuickBooksAPI
+    , QWCFile(..)
+    )
+where
 
 import           Data.Aeson                     ( (.=)
                                                 , FromJSON
@@ -43,29 +56,34 @@ import           XML                            ( XML
 type API =
     FrontendAPI :<|> QuickBooksAPI
 
+-- | The 'API' as a Proxy value.
+api :: Proxy API
+api = Proxy
+
+
+
+-- Frontend
+
 -- | The API for communication with the Frontend.
 type FrontendAPI =
          "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCFile
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCFile
 
--- | The API for the communication with the QuickBooks WebConnector.
-type QuickBooksAPI =
-         "cert" :> Get '[PlainText] NoContent
-    :<|> "accountSync" :> ReqBody '[SOAP] Callback :> Post '[SOAP] CallbackResponse
 
-api :: Proxy API
-api = Proxy
-
-
+-- | POST data for creating a new 'Company' model.
 data NewCompany
     = NewCompany
         { ncName :: Text
+        -- ^ Company Name
         , ncUsername :: Text
+        -- ^ Username for WebConnector
         , ncPassword :: Text
+        -- ^ Password for WebConnector
         } deriving (Read, Show, Generic)
 
 instance FromJSON NewCompany
 
+-- | Ensure all text is non-empty.
 instance V.AppValidation NewCompany where
     validator NewCompany {..} =
         NewCompany
@@ -74,11 +92,23 @@ instance V.AppValidation NewCompany where
             <*> V.isNonEmpty "password" ncPassword
 
 
+
+-- QuickBooks
+
+-- | The API for the communication with the QuickBooks WebConnector.
+type QuickBooksAPI =
+         "cert" :> Get '[PlainText] NoContent
+    :<|> "accountSync" :> ReqBody '[SOAP] Callback :> Post '[SOAP] CallbackResponse
+
+
+-- | A QWC Configuration & the user. TODO: Merge user into qwcconfig
 newtype QWCFile = QWCFile (QWCConfig, Text) deriving (Generic)
 
+-- | Build the XML using 'generateConnectorFile'.
 instance ToXML QWCFile where
     toXML (QWCFile (c, u)) = generateConnectorFile c u
 
+-- | Nest the generated XML string under a @config@ key.
 instance ToJSON QWCFile where
     toJSON f =
         let
