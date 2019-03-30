@@ -54,7 +54,7 @@ import           Types                          ( AppEnv(..)
 import qualified Validation                    as V
 
 
--- | The assembled handlers for the 'FrontendAPI type.
+-- | The assembled handlers for the 'FrontendAPI' type.
 routes :: ServerT FrontendAPI AppM
 routes = newCompany :<|> generateQwcFile
 

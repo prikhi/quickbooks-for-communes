@@ -61,6 +61,7 @@ import           DB.Fields                      ( UUIDField(..)
                                                 , SessionType(..)
                                                 , SessionStatus(..)
                                                 , SessionError(..)
+                                                , AccountTypeField(..)
                                                 )
 import           Paths_qbfc                     ( version )
 import           QuickBooks.QBXML               ( Request(AccountQuery)
@@ -377,7 +378,7 @@ updateAccounts companyId accounts = do
     transform accountParent AccountData {..} = Account
         { accountName
         , accountListId       = listID accountReference
-        , accountType
+        , accountType         = AccountTypeField accountType
         , accountParent
         , accountDescription  = fromMaybe "" description
         , accountIsActive     = isActive

@@ -48,9 +48,9 @@ import           DB.Fields                      ( UUIDField
                                                 , SessionError
                                                 , SessionStatus
                                                 , SessionType
+                                                , AccountTypeField
                                                 , EntryStatus
                                                 )
-import           QuickBooks.QBXML               ( AccountType )
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
 Session
@@ -77,7 +77,7 @@ Company
 Account
     name Text
     listId Text
-    type AccountType
+    type AccountTypeField
     parent AccountId Maybe
     description Text
     isActive Bool

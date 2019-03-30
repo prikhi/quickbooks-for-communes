@@ -8,7 +8,7 @@ module DB.Fields
     , SessionStatus(..)
     , SessionError(..)
       -- * Account Fields
-    , AccountType(..)
+    , AccountTypeField(..)
       -- * Entry Fields
     , EntryStatus(..)
       -- * Generic Fields
@@ -60,7 +60,21 @@ $(derivePersistField "SessionError")
 
 -- ACCOUNTS
 
-$(derivePersistField "AccountType")
+-- | A newtype wrapper for AccountTypes so we can add Persistent instances.
+newtype AccountTypeField
+    = AccountTypeField { unAccountTypeField :: AccountType }
+
+-- | Re-use the 'AccountType' 'Show' instance.
+instance Show AccountTypeField where
+    show = show . unAccountTypeField
+
+-- | Re-use the 'AccountType' 'Read' instance.
+instance Read AccountTypeField where
+    readsPrec precedence str =
+        (\(accType, rest) -> (AccountTypeField accType, rest))
+            <$> readsPrec precedence str
+
+$(derivePersistField "AccountTypeField")
 
 
 -- ENTRIES
