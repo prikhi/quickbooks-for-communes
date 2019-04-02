@@ -15,25 +15,17 @@ module Api
     , NewCompany(..)
     -- * QuickBooks Types
     , QuickBooksAPI
-    , QWCFile(..)
     )
 where
 
-import           Data.Aeson                     ( (.=)
-                                                , FromJSON
-                                                , ToJSON(..)
-                                                , object
-                                                )
-import           Data.ByteString                ( ByteString )
+import           Data.Aeson                     ( FromJSON )
 import           Data.Proxy                     ( Proxy(..) )
 import           Data.Text                      ( Text )
-import           Data.Text.Encoding             ( decodeUtf8 )
 import           DB.Schema                      ( CompanyId )
 import           GHC.Generics                   ( Generic )
 import           QuickBooks.WebConnector        ( QWCConfig
                                                 , Callback
                                                 , CallbackResponse
-                                                , generateConnectorFile
                                                 )
 import           Servant.API                    ( (:>)
                                                 , (:<|>)
@@ -46,11 +38,8 @@ import           Servant.API                    ( (:>)
                                                 , NoContent
                                                 )
 import           SOAP                           ( SOAP )
-import           Text.XML.Generator             ( xrender )
 import qualified Validation                    as V
-import           XML                            ( XML
-                                                , ToXML(..)
-                                                )
+import           XML                            ( XML )
 
 -- | Represents the API presented by our server.
 type API =
@@ -66,8 +55,8 @@ api = Proxy
 
 -- | The API for communication with the Frontend.
 type FrontendAPI =
-         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCFile
-    :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCFile
+         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
+    :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
 
 
 -- | POST data for creating a new 'Company' model.
@@ -99,20 +88,3 @@ instance V.AppValidation NewCompany where
 type QuickBooksAPI =
          "cert" :> Get '[PlainText] NoContent
     :<|> "accountSync" :> ReqBody '[SOAP] Callback :> Post '[SOAP] CallbackResponse
-
-
--- | A QWC Configuration & the user. TODO: Merge user into qwcconfig
-newtype QWCFile = QWCFile (QWCConfig, Text) deriving (Generic)
-
--- | Build the XML using 'generateConnectorFile'.
-instance ToXML QWCFile where
-    toXML (QWCFile (c, u)) = generateConnectorFile c u
-
--- | Nest the generated XML string under a @config@ key.
-instance ToJSON QWCFile where
-    toJSON f =
-        let
-            xml :: ByteString
-            xml = xrender $ toXML f
-        in
-            object [ "config" .= decodeUtf8 xml ]

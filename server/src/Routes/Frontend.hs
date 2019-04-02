@@ -12,7 +12,6 @@ module Routes.Frontend
 where
 
 import           Api                            ( FrontendAPI
-                                                , QWCFile(..)
                                                 , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
@@ -61,7 +60,7 @@ routes = newCompany :<|> generateQwcFile
 newCompany
     :: (MonadReader AppEnv m, HashPassword m, SqlDB m, MonadThrow m)
     => NewCompany
-    -> m QWCFile
+    -> m QWCConfig
 newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     hashedPassword <- hashPassword ncPassword
     cfg            <- asks appConfig
@@ -94,38 +93,35 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
 
 -- | Generate a QWC File for a 'Company'.
 generateQwcFile
-    :: (MonadReader AppEnv m, SqlDB m, MonadThrow m) => CompanyId -> m QWCFile
+    :: (MonadReader AppEnv m, SqlDB m, MonadThrow m) => CompanyId -> m QWCConfig
 generateQwcFile companyId = do
     cfg     <- asks appConfig
     company <- runDB $ get companyId >>= maybe (throw err404) return
     return $ companyQwcConfig cfg company
 
 -- | Build the WebConnetor configuration file for a company.
--- TODO: merge user field into QWCConfig record?
-companyQwcConfig :: AppConfig -> Company -> QWCFile
-companyQwcConfig cfg c = QWCFile
-    ( QWCConfig
-        { qcAppDescription     = "Syncing Accounts to " <> appName cfg
-        , qcAppDisplayName     = Nothing
-        , qcAppID              = "QBFC_AS"
-        , qcAppName            = appName cfg <> " - " <> companyName c
-        , qcAppSupport         = url "/support/"
-        , qcAppUniqueName      = Nothing
-        , qcAppURL             = url $ appBaseUrl cfg <> "/accountSync/"
-        , qcCertURL            = Just $ url $ appBaseUrl cfg <> "/cert/"
-        , qcAuthFlags          = []
-        , qcFileID             = appAccountSyncID cfg
-        , qcIsReadOnly         = False
-        , qcNotify             = False
-        , qcOwnerID            = appAccountSyncID cfg
-        , qcPersonalDataPref   = Nothing
-        , qcQBType             = Financial
-        , qcScheduler          = Just $ EveryMinute $ appAccountSyncInterval cfg
-        , qcStyle              = Nothing
-        , qcUnattendedModePref = Nothing
-        }
-    , companyUser c
-    )
+companyQwcConfig :: AppConfig -> Company -> QWCConfig
+companyQwcConfig cfg c = QWCConfig
+    { qcAppDescription     = "Syncing Accounts to " <> appName cfg
+    , qcAppDisplayName     = Nothing
+    , qcAppID              = "QBFC_AS"
+    , qcAppName            = appName cfg <> " - " <> companyName c
+    , qcAppSupport         = url "/support/"
+    , qcAppUniqueName      = Nothing
+    , qcAppURL             = url $ appBaseUrl cfg <> "/accountSync/"
+    , qcCertURL            = Just $ url $ appBaseUrl cfg <> "/cert/"
+    , qcAuthFlags          = []
+    , qcFileID             = appAccountSyncID cfg
+    , qcIsReadOnly         = False
+    , qcNotify             = False
+    , qcOwnerID            = appAccountSyncID cfg
+    , qcPersonalDataPref   = Nothing
+    , qcQBType             = Financial
+    , qcScheduler          = Just $ EveryMinute $ appAccountSyncInterval cfg
+    , qcStyle              = Nothing
+    , qcUnattendedModePref = Nothing
+    , qcUserName           = companyUser c
+    }
   where
     url path = T.concat
         [ "https://"
