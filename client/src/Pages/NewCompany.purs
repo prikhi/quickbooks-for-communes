@@ -76,7 +76,7 @@ data Query a
     | InputUser String a
     | InputPass String a
     | SubmitForm E.Event a
-    -- ^ Log the current form fields to the console.
+    -- ^ Validate & Submit the Form to the Server.
     | Destroy a
     -- ^ Revoke the objectURL.
 
