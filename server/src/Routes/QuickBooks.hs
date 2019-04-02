@@ -21,9 +21,7 @@ import           Control.Exception.Safe         ( Exception
 import           Control.Monad                  ( unless
                                                 , when
                                                 )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
-                                                )
+import           Control.Monad.IO.Class         ( MonadIO )
 import           Crypto.BCrypt                  ( validatePassword )
 import qualified Data.HashMap.Strict           as HM
 import qualified Data.List                     as L
@@ -33,8 +31,6 @@ import qualified Data.Text                     as T
 import           Data.Text.Encoding             ( encodeUtf8 )
 import           Data.Time                      ( UTCTime
                                                 , TimeZone(timeZoneSummerOnly)
-                                                , getCurrentTime
-                                                , getTimeZone
                                                 , addUTCTime
                                                 )
 import           Data.UUID                      ( UUID )
@@ -80,10 +76,12 @@ import           QuickBooks.WebConnector        ( Callback(..)
                                                 )
 import           Servant.API
 import           Servant.Server                 ( ServerT )
-import           System.Random                  ( randomIO )
 import           Types                          ( AppM(..)
-                                                , AppSqlM
+                                                , SqlM
                                                 , runDB
+                                                , SqlDB(..)
+                                                , GenerateUUID(..)
+                                                , TimeAndZone(..)
                                                 )
 
 
@@ -101,7 +99,8 @@ certRoute = return NoContent
 -- | Perform querying/syncing operations for the QuickBooks Accounts.
 --
 -- TODO: Do both accounting pulling & entry pushing here?
-syncRoute :: Callback -> AppM CallbackResponse
+syncRoute
+    :: (GenerateUUID m, SqlDB m, MonadCatch m) => Callback -> m CallbackResponse
 syncRoute r = case r of
     ServerVersion ->
         -- Use the version specified in package.yaml
@@ -145,7 +144,7 @@ syncRoute r = case r of
                 runDB $ update sessionId [SessionStatus_ =. UpdatingAccounts]
                 runDB $ do
                     updateAccounts companyId accounts
-                    now <- liftIO getCurrentTime
+                    now <- getTime
                     update companyId [CompanyLastSyncTime =. Just now]
                 return $ ReceiveResponseXMLResp 100
             _ -> return $ ReceiveResponseXMLResp (-1)
@@ -196,7 +195,7 @@ syncRoute r = case r of
                         update sessionId [SessionStatus_ =. ErrorReported message]
                         return message
   where
-    newSession :: AppM (UUID, SessionId)
+    newSession :: (SqlDB m, GenerateUUID m) => m (UUID, SessionId)
     newSession = runDB $ do
         ticket <- generateUniqueTicket
         (ticket, ) <$> insert Session
@@ -212,10 +211,11 @@ syncRoute r = case r of
         validatePassword (encodeUtf8 companyPassword)
                          (encodeUtf8 passwordAttempt)
 
-    getSession :: UUID -> AppSqlM (Maybe (Entity Session))
+    getSession :: MonadIO m => UUID -> SqlM m (Maybe (Entity Session))
     getSession = getBy . UniqueTicket . UUIDField
 
-    validateTicket :: UUID -> AppSqlM (Maybe (Entity Session, Entity Company))
+    validateTicket
+        :: MonadIO m => UUID -> SqlM m (Maybe (Entity Session, Entity Company))
     validateTicket ticket = getSession ticket >>= \case
         Nothing                   -> return Nothing
         Just s@(Entity _ session) -> case sessionCompany session of
@@ -228,7 +228,8 @@ syncRoute r = case r of
 
     -- Stop retrying the quickbooks connection in the ConnectionError
     -- callback.
-    abortConnectionRetrying :: SessionId -> T.Text -> AppSqlM CallbackResponse
+    abortConnectionRetrying
+        :: MonadIO m => SessionId -> T.Text -> SqlM m CallbackResponse
     abortConnectionRetrying sessionId message =
         update
                 sessionId
@@ -241,9 +242,9 @@ syncRoute r = case r of
     -- will be an hour behind Quickbook's modified times, causing
     -- Quickbooks to return extraneous accounts. This function bumps up the
     -- sync time by an hour if necessary.
-    adjustSyncTime :: MonadIO m => UTCTime -> m (Maybe UTCTime)
+    adjustSyncTime :: TimeAndZone m => UTCTime -> m (Maybe UTCTime)
     adjustSyncTime syncTime = do
-        isSummer <- liftIO $ timeZoneSummerOnly <$> getTimeZone syncTime
+        isSummer <- timeZoneSummerOnly <$> getZone syncTime
         return . Just $ if isSummer
             then fromInteger (60 * 60) `addUTCTime` syncTime
             else syncTime
@@ -261,7 +262,7 @@ authFailure = throw AuthFailure
 
 -- | Update the session status & error and return a failure authenticaton
 -- result.
-handleAuthFailure :: SessionId -> AuthFailure -> AppSqlM AuthResult
+handleAuthFailure :: MonadIO m => SessionId -> AuthFailure -> SqlM m AuthResult
 handleAuthFailure sessionId AuthFailure = do
     update
         sessionId
@@ -273,9 +274,9 @@ handleAuthFailure sessionId AuthFailure = do
 
 -- | Generate a 'Session' 'UUID' that does not yet exist in the
 -- database.
-generateUniqueTicket :: AppSqlM UUID
+generateUniqueTicket :: (MonadIO m, GenerateUUID m) => SqlM m UUID
 generateUniqueTicket = do
-    ticket <- liftIO randomIO
+    ticket <- generateUUID
     getBy (UniqueTicket $ UUIDField ticket) >>= \case
         Nothing -> return ticket
         Just _  -> generateUniqueTicket
@@ -290,7 +291,7 @@ generateUniqueTicket = do
 -- first inserting parents that are furthur down the list or finding them
 -- in the database. After finding & upserting the parent, we use it's
 -- AccountId to upsert the child Account.
-updateAccounts :: CompanyId -> [AccountData] -> AppSqlM ()
+updateAccounts :: MonadIO m => CompanyId -> [AccountData] -> SqlM m ()
 updateAccounts companyId accounts = do
     let (roots, dataMap, childMap, refList) = foldl
             (\(roots_, dataMap_, childMap_, refList_) account ->
@@ -351,11 +352,12 @@ updateAccounts companyId accounts = do
     -- | Insert/Update the account, given the data map, child map, & parent
     -- account ID.
     runUpdate
-        :: HM.HashMap ListReference AccountData
+        :: MonadIO m
+        => HM.HashMap ListReference AccountData
         -> HM.HashMap ListReference [ListReference]
         -> Maybe AccountId
         -> ListReference
-        -> AppSqlM [ListReference]
+        -> SqlM m [ListReference]
     runUpdate dataMap childMap maybeParent accountRef
         = let children = fromMaybe [] $ HM.lookup accountRef childMap
           in
@@ -388,7 +390,7 @@ updateAccounts companyId accounts = do
 
     -- | Insert the account if the unique list reference doesn't exist, otherwise
     -- replace the existing account.
-    uniqueRepsert :: Account -> AppSqlM AccountId
+    uniqueRepsert :: MonadIO m => Account -> SqlM m AccountId
     uniqueRepsert account =
         getBy (UniqueListId companyId $ accountListId account) >>= \case
             Nothing -> insert account
@@ -397,7 +399,10 @@ updateAccounts companyId accounts = do
 
     -- | Insert/Update Accounts whose roots were not in the account list.
     processFragments
-        :: HM.HashMap ListReference AccountData -> [ListReference] -> AppSqlM ()
+        :: MonadIO m
+        => HM.HashMap ListReference AccountData
+        -> [ListReference]
+        -> SqlM m ()
     processFragments dataMap refs = case refs of
         []              -> return ()
         ref : toProcess -> do
@@ -412,10 +417,11 @@ updateAccounts companyId accounts = do
     -- parent & child, we return the child's account ID & the remaining
     -- references that have no yet been updated.
     processFragment
-        :: HM.HashMap ListReference AccountData
+        :: MonadIO m
+        => HM.HashMap ListReference AccountData
         -> ListReference
         -> [ListReference]
-        -> AppSqlM (Maybe AccountId, [ListReference])
+        -> SqlM m (Maybe AccountId, [ListReference])
     processFragment dataMap ref remaining = case HM.lookup ref dataMap of
         Nothing      -> return (Nothing, remaining)
         Just account -> case getFullParentReference account of

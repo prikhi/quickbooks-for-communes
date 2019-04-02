@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,22 +16,16 @@ import           Api                            ( FrontendAPI
                                                 , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
-import           Control.Exception.Safe         ( throw )
+import           Control.Exception.Safe         ( MonadThrow
+                                                , throw
+                                                )
 import           Control.Monad                  ( (>=>) )
-import           Control.Monad.IO.Class         ( MonadIO
-                                                , liftIO
+import           Control.Monad.Reader           ( MonadReader
+                                                , asks
                                                 )
-import           Control.Monad.Reader           ( asks )
-import           Crypto.BCrypt                  ( hashPasswordUsingPolicy
-                                                , slowerBcryptHashingPolicy
-                                                )
-import           Data.ByteString                ( ByteString )
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
-import           Data.Text.Encoding             ( encodeUtf8
-                                                , decodeUtf8
-                                                )
 import           Database.Persist.Sql           ( insert_
                                                 , get
                                                 , getBy
@@ -49,7 +44,8 @@ import           Servant.Server                 ( ServerT
                                                 )
 import           Types                          ( AppEnv(..)
                                                 , AppM(..)
-                                                , runDB
+                                                , SqlDB(..)
+                                                , HashPassword(..)
                                                 )
 import qualified Validation                    as V
 
@@ -59,12 +55,15 @@ routes :: ServerT FrontendAPI AppM
 routes = newCompany :<|> generateQwcFile
 
 
--- | Validate & Create a new 'Company'.
+-- | Validate & create a new 'Company'.
 --
 -- TODO: Require user account via cookie auth
-newCompany :: NewCompany -> AppM QWCFile
+newCompany
+    :: (MonadReader AppEnv m, HashPassword m, SqlDB m, MonadThrow m)
+    => NewCompany
+    -> m QWCFile
 newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
-    hashedPassword <- hashPassword $ encodeUtf8 ncPassword
+    hashedPassword <- hashPassword ncPassword
     cfg            <- asks appConfig
     case hashedPassword of
         Nothing -> V.validationError $ V.formError
@@ -89,15 +88,13 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     userError_ = V.validate "username"
                             "A company is already using this username."
                             isNothing
-    hashPassword :: MonadIO m => ByteString -> m (Maybe T.Text)
-    hashPassword pass = fmap decodeUtf8
-        <$> liftIO (hashPasswordUsingPolicy slowerBcryptHashingPolicy pass)
 
 
 -- Get a QWC File
 
 -- | Generate a QWC File for a 'Company'.
-generateQwcFile :: CompanyId -> AppM QWCFile
+generateQwcFile
+    :: (MonadReader AppEnv m, SqlDB m, MonadThrow m) => CompanyId -> m QWCFile
 generateQwcFile companyId = do
     cfg     <- asks appConfig
     company <- runDB $ get companyId >>= maybe (throw err404) return
