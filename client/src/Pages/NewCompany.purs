@@ -233,10 +233,9 @@ formErrors errs =
 input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> String -> HH.HTML p (i Unit)
 input label type_ value action errors helpText =
     HH.label errorClass
-        [ HH.div_
-            [ HH.text label
-            , HH.p_ [ HH.text helpText ]
-            ]
+        [ HH.div_ $
+            [ HH.text label ]
+            <> helpElement
         , HH.input $
             [ HP.type_ type_
             , HP.required true
@@ -247,6 +246,9 @@ input label type_ value action errors helpText =
               else HH.text ""
         ]
   where
+    helpElement :: forall p_ i_. Array (HH.HTML p_ (i_ Unit))
+    helpElement =
+        if helpText /= "" then [ HH.p_ [ HH.text helpText ] ] else []
     hasError :: Boolean
     hasError =
         not $ Array.null errors
