@@ -19,6 +19,7 @@ import Control.Monad.State (class MonadState)
 import Data.Date (Date, year, month, day)
 import Data.DateTime (date)
 import Data.Decimal as Decimal
+import Data.Either (Either(..))
 import Data.Enum (fromEnum)
 import Data.Foldable (fold)
 import Data.Maybe (Maybe(..))
@@ -36,6 +37,7 @@ import App
     , class DateTime, parseDate, now
     )
 import Forms (input, dateInput, dollarInput, submitButton, labelWrapper, optionalValue)
+import Server (class Server, companiesRequest, CompanyData)
 import Validation as V
 
 
@@ -44,6 +46,7 @@ component :: forall i o m
     . LogToConsole m
    => PreventDefaultSubmit m
    => DateTime m
+   => Server m
    => H.Component HH.HTML Query i o m
 component =
     H.lifecycleComponent
@@ -57,7 +60,8 @@ component =
 
 
 type State =
-    { date :: Maybe String
+    { companies :: Array CompanyData
+    , date :: Maybe String
     , name :: Maybe String
     , tripNumber :: Maybe String
     , cashAdvance :: Maybe String
@@ -67,7 +71,8 @@ type State =
 
 initial :: State
 initial =
-    { date: Nothing
+    { companies: []
+    , date: Nothing
     , name: Nothing
     , tripNumber: Nothing
     , cashAdvance: Nothing
@@ -93,12 +98,18 @@ eval :: forall m
    => LogToConsole m
    => PreventDefaultSubmit m
    => DateTime m
+   => Server m
    => Query ~> m
 eval = case _ of
     Initialize next -> do
         currentDate <- date <$> now
         H.modify_ (_ { date = Just $ makeDate currentDate })
         updateTripNumber currentDate
+        companiesRequest >>= case _ of
+            Right cs ->
+                H.modify_ (_ { companies = cs })
+            Left _ ->
+                pure unit
         pure next
     InputDate str next -> do
         autofillTripNumber str
