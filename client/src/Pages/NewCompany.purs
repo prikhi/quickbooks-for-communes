@@ -1,19 +1,17 @@
-module Pages.NewCompany
-    ( component
-    , Query
-    ) where
-
 {- | The page for add a New QuickBooks Company. This presents a form for the
    | Company which, on submission, displays a download link for the QuickBooks
    | WebConnector's @qwc@ config file.
 
 -}
+module Pages.NewCompany
+    ( component
+    , Query(..)
+    ) where
 
 import Prelude
 
 import Control.Monad.State (class MonadState)
 import Data.Either (Either(..))
-import Data.Array as Array
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Halogen as H
 import Halogen.HTML as HH
@@ -25,6 +23,7 @@ import App
     ( class PreventDefaultSubmit, preventSubmit
     , class ManageObjectURLs, createObjectURL, revokeObjectURL
     )
+import Forms (formErrors, input, submitButton)
 import Server (class Server, newCompanyRequest, NewCompanyData(..), QWCFile(..))
 import Validation as V
 
@@ -133,7 +132,6 @@ eval = case _ of
 
 
 -- | Render the New Company page.
--- | TODO: Implement initialization in server - i.e., save company file path
 render :: State -> H.ComponentHTML Query
 render st =
     maybe showForm showDownload st.objectURL
@@ -212,69 +210,3 @@ downloadButton filename text objectURL =
         , HP.class_ $ H.ClassName "link-button"
         ]
         [ HH.text text ]
-
-
--- Forms - TODO: stick in module
-
--- | Render the general errors for a form.
-formErrors :: forall p i. Array String -> HH.HTML p i
-formErrors errs =
-    if not $ Array.null errs then
-        HH.p [HP.class_ $ H.ClassName "form-errors"]
-            [ HH.text "We encountered the following errors when processing \
-                \your request. Please address them and try re-submitting the form:"
-            , HH.ul_ $ map (\err -> HH.li_ [HH.text err]) errs
-            ]
-    else
-        HH.text ""
-
--- | Render a standard `HH.input` element with a label, help text, and an error
--- | list.
-input :: forall p i. String -> HP.InputType -> Maybe String -> (String -> Unit -> i Unit) -> Array String -> String -> HH.HTML p (i Unit)
-input label type_ value action errors helpText =
-    HH.label errorClass
-        [ HH.div_ $
-            [ HH.text label ]
-            <> helpElement
-        , HH.input $
-            [ HP.type_ type_
-            , HP.required true
-            , HE.onValueChange $ HE.input action
-            ] <> optionalValue
-        , if hasError
-              then HH.ul_ $ map (\e -> HH.li_ [HH.text e]) errors
-              else HH.text ""
-        ]
-  where
-    helpElement :: forall p_ i_. Array (HH.HTML p_ (i_ Unit))
-    helpElement =
-        if helpText /= "" then [ HH.p_ [ HH.text helpText ] ] else []
-    hasError :: Boolean
-    hasError =
-        not $ Array.null errors
-
-    errorClass :: forall r i_. Array (HP.IProp ( class :: String | r ) i_)
-    errorClass =
-        if hasError
-            then [HP.class_ $ H.ClassName "error"]
-            else []
-
-    optionalValue :: forall r i_. Array (HP.IProp ( value :: String | r ) i_)
-    optionalValue = case value of
-        Nothing ->
-            []
-        Just val -> [ HP.value val ]
-
--- | Render a standard `HH.button` element.
-button :: forall p i. String -> HP.ButtonType -> H.ClassName -> (Unit -> i Unit) -> HH.HTML p (i Unit)
-button label type_ class_ action =
-    HH.button
-        [ HE.onClick $ HE.input_ action, HP.class_ class_, HP.type_ type_ ]
-        [ HH.text label ]
-
--- | Render a button to submit it's form. Uses the primary button styling.
-submitButton :: forall p i. String -> HH.HTML p i
-submitButton label =
-    HH.button
-        [ HP.class_ (H.ClassName "primary"), HP.type_ HP.ButtonSubmit ]
-        [ HH.text label ]
