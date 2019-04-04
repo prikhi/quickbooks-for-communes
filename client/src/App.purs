@@ -8,6 +8,10 @@ import Control.Monad.Reader
     , class MonadAsk
     , asks
     )
+import Data.Date (Date)
+import Data.DateTime (DateTime)
+import Data.JSDate as JSDate
+import Data.Maybe (Maybe)
 import Data.Newtype
     ( class Newtype
     , unwrap
@@ -19,6 +23,7 @@ import Effect.Class
     , liftEffect
     )
 import Effect.Class.Console as Console
+import Effect.Now (nowDateTime)
 import Foreign (unsafeToForeign)
 import Halogen as H
 import Routing.PushState (PushStateInterface)
@@ -146,3 +151,21 @@ instance manageObjectUrlsHalogen :: ManageObjectURLs m
     => ManageObjectURLs (H.HalogenM s f g p o m) where
     createObjectURL = H.lift <<< createObjectURL
     revokeObjectURL = H.lift <<< revokeObjectURL
+
+
+-- Dates
+
+class Monad m <= DateTime m where
+    parseDate :: String -> m (Maybe Date)
+    now :: m DateTime
+
+instance dateTimeApp :: DateTime AppM where
+    parseDate str =
+        JSDate.toDate <$> (H.liftEffect $ JSDate.parse str)
+    now =
+        H.liftEffect nowDateTime
+
+instance dateTimeHalogen :: DateTime m
+    => DateTime (H.HalogenM s f g p o m) where
+    parseDate = H.lift <<< parseDate
+    now = H.lift $ now

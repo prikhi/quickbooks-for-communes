@@ -14,6 +14,7 @@
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
+    "decimal.js": "^10.1.1",
     "parcel-bundler": "^1.12.3",
     "pscid": "^2.6.0",
     "purescript": "^0.12.3",

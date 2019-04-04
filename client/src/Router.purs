@@ -25,6 +25,8 @@ import App
     , class PreventDefaultClick, preventClick
     , class PreventDefaultSubmit
     , class ManageObjectURLs
+    , class LogToConsole
+    , class DateTime
     )
 import Server (class Server)
 
@@ -129,6 +131,8 @@ render :: forall m
     . PreventDefaultSubmit m
    => Server m
    => ManageObjectURLs m
+   => LogToConsole m
+   => DateTime m
    => State -> H.ParentHTML Query ChildQuery ChildSlot m
 render { currentPage } =
     HH.div_
@@ -166,6 +170,8 @@ renderPage :: forall m
     . PreventDefaultSubmit m
    => Server m
    => ManageObjectURLs m
+   => LogToConsole m
+   => DateTime m
    => Route -> H.ParentHTML Query ChildQuery ChildSlot m
 renderPage = case _ of
     Home ->
