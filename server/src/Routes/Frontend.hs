@@ -6,6 +6,8 @@
 -}
 module Routes.Frontend
     ( routes
+    , companies
+    , accounts
     , newCompany
     , generateQwcFile
     )
@@ -13,6 +15,7 @@ where
 
 import           Api                            ( FrontendAPI
                                                 , CompanyData(..)
+                                                , AccountData(..)
                                                 , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
@@ -26,7 +29,8 @@ import           Control.Monad.Reader           ( MonadReader
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
-import           Database.Persist.Sql           ( Entity(..)
+import           Database.Persist.Sql           ( (==.)
+                                                , Entity(..)
                                                 , SelectOpt(Desc)
                                                 , selectList
                                                 , insert_
@@ -35,8 +39,9 @@ import           Database.Persist.Sql           ( Entity(..)
                                                 )
 import           DB.Schema                      ( Company(..)
                                                 , CompanyId
+                                                , Account(..)
                                                 , Unique(..)
-                                                , EntityField(CompanyName)
+                                                , EntityField(..)
                                                 )
 import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , QBType(..)
@@ -56,15 +61,29 @@ import qualified Validation                    as V
 
 -- | The assembled handlers for the 'FrontendAPI' type.
 routes :: ServerT FrontendAPI AppM
-routes = companies :<|> newCompany :<|> generateQwcFile
+routes = companies :<|> accounts :<|> newCompany :<|> generateQwcFile
 
 
+-- | Fetch all Companies.
 companies :: (SqlDB m) => m [CompanyData]
 companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
   where
     convert :: Entity Company -> CompanyData
     convert (Entity cId c) =
         CompanyData {cdCompanyId = cId, cdCompanyName = companyName c}
+
+
+-- | Fetch the Accounts for a 'Company'.
+accounts :: SqlDB m => CompanyId -> m [AccountData]
+accounts companyId = runDB $ map convert <$> selectList
+    [AccountCompany ==. companyId, AccountIsActive ==. True]
+    [Desc AccountName]
+  where
+    convert (Entity aId a) = AccountData
+        { adAccountId          = aId
+        , adAccountName        = accountName a
+        , adAccountDescription = accountDescription a
+        }
 
 
 -- | Validate & create a new 'Company'.
