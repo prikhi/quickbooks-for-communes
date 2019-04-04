@@ -11,6 +11,7 @@ $gray-white: #F4F5F7
 
 $body-text: $dark
 $body-bg: $gray-white
+$font-family: Sans
 $border-radius: 5px
 
 $nav-text: $body-bg
@@ -34,10 +35,12 @@ $button-primary-hover: lighten($button-primary, 10%)
 body
   padding: 0
   margin: 0
-  font-family: Sans
+  font-family: $font-family
   font-size: 1rem
   color: $body-text
   background-color: $body-bg
+  input
+    font-family: $font-family
 
 /* Color and enlarge buttons */
 button.primary, a.link-button
@@ -88,8 +91,14 @@ label
     padding: 0.35em 0.5em
     box-sizing: border-box
     background-color: $input-bg
+    box-shadow: inset 0 1px 1px rgba(black, 0.1)
     // Transition the focus highlights
     transition: 0.3s border-color, 0.3s box-shadow
+
+    &[disabled]
+      cursor: not-allowed
+      color: lighten($body-text, 30%)
+      background-color: darken($input-bg, 10%)
 
     // Disable the default outline, use the border color & a box shadow instead
     &:focus
