@@ -20,7 +20,8 @@ import Routing.Match (Match, lit, root, end)
 import Web.UIEvent.MouseEvent as ME
 
 import App
-    ( class Navigation, newUrl
+    ( AppM
+    , class Navigation, newUrl
     , class PreventDefaultClick, preventClick
     , class PreventDefaultSubmit
     , class ManageObjectURLs
@@ -79,13 +80,7 @@ reverse = case _ of
     NewCompany -> "/new-company/"
     NewTrip -> "/trips/add/"
 
-component :: forall m
-    . PreventDefaultSubmit m
-   => PreventDefaultClick m
-   => Navigation m
-   => Server m
-   => ManageObjectURLs m
-   => H.Component HH.HTML Query Unit Void m
+component :: H.Component HH.HTML Query Unit Void AppM
 component = H.parentComponent
     { initialState: const initial
     , render
