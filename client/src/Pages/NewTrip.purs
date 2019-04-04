@@ -1,7 +1,9 @@
 {- | The page component for adding a new Trip Entry.
 
 TODO:
-    * Company dropdown + account fetching.
+    * Handle waiting for companies to load & no companies returned
+    * Handle unselected company, waiting for accounts to load & no accounts
+      returned
     * Transaction tables
     * Form validation
     * Form submission
@@ -16,12 +18,14 @@ module Pages.NewTrip
 import Prelude
 
 import Control.Monad.State (class MonadState)
+import Data.Array as Array
 import Data.Date (Date, year, month, day)
 import Data.DateTime (date)
 import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
 import Data.Foldable (fold)
+import Data.Int as Int
 import Data.Maybe (Maybe(..))
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
@@ -37,7 +41,10 @@ import App
     , class DateTime, parseDate, now
     )
 import Forms (input, dateInput, dollarInput, submitButton, labelWrapper, optionalValue)
-import Server (class Server, companiesRequest, CompanyData)
+import Server
+    ( CompanyData(..), AccountData
+    , class Server, companiesRequest, accountsRequest
+    )
 import Validation as V
 
 
@@ -61,6 +68,8 @@ component =
 
 type State =
     { companies :: Array CompanyData
+    , accounts :: Array AccountData
+    , company :: Maybe String
     , date :: Maybe String
     , name :: Maybe String
     , tripNumber :: Maybe String
@@ -72,6 +81,8 @@ type State =
 initial :: State
 initial =
     { companies: []
+    , accounts: []
+    , company: Nothing
     , date: Nothing
     , name: Nothing
     , tripNumber: Nothing
@@ -84,6 +95,7 @@ initial =
 data Query a
     = Initialize a
     -- ^ Get the current date & set the Date & Trip Number fields.
+    | InputCompany String a
     | InputDate String a
     | InputName String a
     | InputNumber String a
@@ -106,9 +118,23 @@ eval = case _ of
         H.modify_ (_ { date = Just $ makeDate currentDate })
         updateTripNumber currentDate
         companiesRequest >>= case _ of
-            Right cs ->
+            Right cs -> do
                 H.modify_ (_ { companies = cs })
+                case Array.head cs of
+                    Just (CompanyData company) -> do
+                        H.modify_ (_ { company = Just $ show company.id })
+                        fetchAccounts company.id
+                    Nothing ->
+                        pure unit
             Left _ ->
+                pure unit
+        pure next
+    InputCompany str next -> do
+        H.modify_ (_ { company = Just str })
+        case Int.fromString str of
+            Just companyId ->
+                fetchAccounts companyId
+            Nothing ->
                 pure unit
         pure next
     InputDate str next -> do
@@ -143,6 +169,17 @@ eval = case _ of
             , "-"
             , padZero $ fromEnum $ day date
             ]
+    -- Fetch the accounts for a company & update the state.
+    fetchAccounts :: forall m_
+        . MonadState State m_
+       => Server m_
+       => Int -> m_ Unit
+    fetchAccounts companyId = do
+        accountsRequest companyId >>= case _ of
+            Right accs ->
+                H.modify_ (_ { accounts = accs })
+            Left _ ->
+                pure unit
     -- Set the trip number given a new date input string, if the old number
     -- matches the previous date string, or the trip number is blank.
     autofillTripNumber :: forall m_
@@ -187,7 +224,8 @@ eval = case _ of
 render :: State -> H.ComponentHTML Query
 render st =
     HH.form [ HE.onSubmit $ HE.input SubmitForm ]
-        [ dateInput "Date" st.date InputDate (errors "date")
+        [ companySelect st.company st.companies
+        , dateInput "Date" st.date InputDate (errors "date")
             "The day you went on the trip."
         , input "Tripper" HP.InputText st.name InputName (errors "name")
             "Your name."
@@ -219,3 +257,22 @@ cashSpentInput st =
   where
     toDecimal :: Maybe String -> Maybe Decimal.Decimal
     toDecimal = join <<< map Decimal.fromString
+
+-- | Render the select element for companies.
+companySelect :: Maybe String -> Array CompanyData -> H.ComponentHTML Query
+companySelect selectedCompany companies =
+    labelWrapper "Company" [] "The company to make a trip for."
+        $ HH.select
+            [ HP.required true
+            , HP.autofocus true
+            , HE.onValueChange $ HE.input InputCompany
+            ]
+        $ map
+            (\(CompanyData company) ->
+                HH.option
+                    [ HP.value $ show company.id
+                    , HP.selected $ selectedCompany == Just (show company.id)
+                    ]
+                    [ HH.text company.name ]
+            )
+            companies

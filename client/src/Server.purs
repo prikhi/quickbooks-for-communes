@@ -29,28 +29,25 @@ import Validation as V
 class Monad m <= Server m where
     -- | Fetch the data for all available Companies.
     companiesRequest :: m (Either String (Array CompanyData))
+    -- | Fetch the Account data for a Company.
+    accountsRequest :: Int -> m (Either String (Array AccountData))
     -- | Add a new Company.
     newCompanyRequest :: NewCompanyData -> m (Response (Either V.FormErrors QWCFile))
 
 instance serverApp :: Server AppM where
     companiesRequest = liftAff cdRequest
+    accountsRequest = liftAff <<< adRequest
     newCompanyRequest = liftAff <<< ncRequest
 
 instance serverHalogen :: Server m => Server (H.HalogenM s f g o p m) where
     companiesRequest = H.lift companiesRequest
+    accountsRequest = H.lift <<< accountsRequest
     newCompanyRequest = H.lift <<< newCompanyRequest
 
 
 cdRequest :: Aff (Either String (Array CompanyData))
 cdRequest =
     decodeResponse <$> get Response.json "/api/companies/"
-
-decodeResponse :: forall a
-    . DecodeJson a
-   => Response (Either ResponseFormatError Json)
-   -> Either String a
-decodeResponse resp =
-    lmap printResponseFormatError resp.body >>= decodeJson
 
 data CompanyData
     = CompanyData
@@ -68,6 +65,38 @@ instance decodeCompanyData :: DecodeJson CompanyData where
         id <- o .: "cdCompanyId"
         name <- o .: "cdCompanyName"
         pure $ CompanyData { id, name }
+
+
+adRequest :: Int -> Aff (Either String (Array AccountData))
+adRequest companyId =
+    decodeResponse <$> get Response.json ("/api/accounts/" <> show companyId)
+
+data AccountData
+    = AccountData
+        { id :: Int
+        , name :: String
+        , description :: String
+        }
+derive instance genericAccountData :: Generic AccountData _
+
+instance showAccountData :: Show AccountData where
+    show = genericShow
+
+instance decodeAccountData :: DecodeJson AccountData where
+    decodeJson json = do
+        o <- decodeJson json
+        id <- o .: "adAccountId"
+        name <- o .: "adAccountName"
+        description <- o .: "adAccountDescription"
+        pure $ AccountData { id, name, description }
+
+
+decodeResponse :: forall a
+    . DecodeJson a
+   => Response (Either ResponseFormatError Json)
+   -> Either String a
+decodeResponse resp =
+    lmap printResponseFormatError resp.body >>= decodeJson
 
 
 -- | Handle NewCompany POST requests.

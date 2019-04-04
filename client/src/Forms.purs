@@ -1,8 +1,7 @@
 {- | Functions for rendering form labels, inputs, buttons, & errors.
 -}
 module Forms
-    (
-      formErrors
+    ( formErrors
     , button
     , submitButton
     , input
