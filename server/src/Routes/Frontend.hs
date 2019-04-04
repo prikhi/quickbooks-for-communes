@@ -12,6 +12,7 @@ module Routes.Frontend
 where
 
 import           Api                            ( FrontendAPI
+                                                , CompanyData(..)
                                                 , NewCompany(..)
                                                 )
 import           Config                         ( AppConfig(..) )
@@ -25,13 +26,17 @@ import           Control.Monad.Reader           ( MonadReader
 import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
-import           Database.Persist.Sql           ( insert_
+import           Database.Persist.Sql           ( Entity(..)
+                                                , SelectOpt(Desc)
+                                                , selectList
+                                                , insert_
                                                 , get
                                                 , getBy
                                                 )
 import           DB.Schema                      ( Company(..)
                                                 , CompanyId
                                                 , Unique(..)
+                                                , EntityField(CompanyName)
                                                 )
 import           QuickBooks.WebConnector        ( QWCConfig(..)
                                                 , QBType(..)
@@ -51,7 +56,15 @@ import qualified Validation                    as V
 
 -- | The assembled handlers for the 'FrontendAPI' type.
 routes :: ServerT FrontendAPI AppM
-routes = newCompany :<|> generateQwcFile
+routes = companies :<|> newCompany :<|> generateQwcFile
+
+
+companies :: (SqlDB m) => m [CompanyData]
+companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
+  where
+    convert :: Entity Company -> CompanyData
+    convert (Entity cId c) =
+        CompanyData {cdCompanyId = cId, cdCompanyName = companyName c}
 
 
 -- | Validate & create a new 'Company'.

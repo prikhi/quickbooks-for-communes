@@ -12,13 +12,16 @@ module Api
     , api
     -- * Frontend Types
     , FrontendAPI
+    , CompanyData(..)
     , NewCompany(..)
     -- * QuickBooks Types
     , QuickBooksAPI
     )
 where
 
-import           Data.Aeson                     ( FromJSON )
+import           Data.Aeson                     ( ToJSON
+                                                , FromJSON
+                                                )
 import           Data.Proxy                     ( Proxy(..) )
 import           Data.Text                      ( Text )
 import           DB.Schema                      ( CompanyId )
@@ -55,8 +58,19 @@ api = Proxy
 
 -- | The API for communication with the Frontend.
 type FrontendAPI =
-         "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
+         "companies" :> Get '[JSON] [CompanyData]
+    :<|> "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
+
+
+-- | Data describing all available 'Company's.
+data CompanyData
+    = CompanyData
+        { cdCompanyId :: CompanyId
+        , cdCompanyName :: Text
+        } deriving (Show, Read, Generic)
+
+instance ToJSON CompanyData
 
 
 -- | POST data for creating a new 'Company' model.
