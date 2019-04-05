@@ -12,7 +12,9 @@ $gray-white: #F4F5F7
 $body-text: $dark
 $body-bg: $gray-white
 $font-family: Sans
+
 $border-radius: 5px
+$border-width: 1px
 
 $nav-text: $body-bg
 $nav-bg: $body-text
@@ -48,7 +50,7 @@ button.primary, a.link-button
   color: $button-text
   background-color: $button-primary
   padding: 0.5em
-  border: $body-text solid 1px
+  border: $body-text solid $border-width
   border-radius: $border-radius
   transition: 0.3s background-color
   cursor: pointer
@@ -86,7 +88,7 @@ label
     margin-left: 1em
     line-height: 1
     font-size: 1rem
-    border: 1px solid $body-text
+    border: $border-width solid $body-text
     border-radius: $border-radius
     padding: 0.35em 0.5em
     box-sizing: border-box
@@ -158,12 +160,33 @@ label
       margin-left: 0
       text-align: left
 
+/* Make fieldsets match normal form elements */
+fieldset
+  margin-bottom: 1em
+  border: $border-width solid $body-text
+  border-radius: $border-radius
+
+  /* Make fieldset labels/inputs line up with other inputs */
+  padding-left: 0.75em
+  padding-right: 0.75em
+  > label
+    margin-left: calc(-0.75em + $border-width)
+    margin-right: calc(-0.75em + $border-width)
+
+  /* Emphasize legends */
+  legend
+    font-size: 1.2rem
+    font-weight: bold
+    padding-left: 0.1em
+    padding-right: 0.25em
+
+
 /* Show the general form errors in a box */
 form > p.form-errors
   color: $input-error
   background-color: darken($body-bg, 10%)
   padding: 0.75em 1em
-  border: solid 1px $input-error
+  border: solid $border-width $input-error
   border-radius: $border-radius
 
 /* Show success text in a box as well */
@@ -171,7 +194,7 @@ p.success
   color: $green
   background-color: mix(darken($body-bg, 2%), $green, 92.5%)
   padding: 0.75em 1em
-  border: solid 1px $green
+  border: solid $border-width $green
   border-radius: $border-radius
 
 
