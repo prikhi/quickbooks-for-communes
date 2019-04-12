@@ -162,7 +162,7 @@ label
 
 /* Make fieldsets match normal form elements */
 fieldset
-  margin-bottom: 1em
+  margin: 0 0 1em
   border: $border-width solid $body-text
   border-radius: $border-radius
 
@@ -170,8 +170,8 @@ fieldset
   padding-left: 0.75em
   padding-right: 0.75em
   > label
-    margin-left: calc(-0.75em + $border-width)
-    margin-right: calc(-0.75em + $border-width)
+    margin-left: calc(-0.75em - #{$border-width})
+    margin-right: calc(-0.75em - #{$border-width})
 
   /* Emphasize legends */
   legend
