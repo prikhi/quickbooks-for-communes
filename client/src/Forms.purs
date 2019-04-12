@@ -148,7 +148,7 @@ input label type_ value action errors helpText =
         , HH.input $
             [ HP.type_ type_
             , HP.required true
-            , HE.onValueChange $ HE.input action
+            , HE.onValueInput $ HE.input action
             ] <> optionalValue value
         , if hasError
               then HH.ul_ $ map (\e -> HH.li_ [HH.text e]) errors
