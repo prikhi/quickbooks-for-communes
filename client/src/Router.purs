@@ -129,6 +129,7 @@ eval = case _ of
 -- | Render the application.
 render :: forall m
     . PreventDefaultSubmit m
+   => PreventDefaultClick m
    => Server m
    => ManageObjectURLs m
    => LogToConsole m
@@ -168,6 +169,7 @@ renderHeader currentPage =
 -- | Render the page's component.
 renderPage :: forall m
     . PreventDefaultSubmit m
+   => PreventDefaultClick m
    => Server m
    => ManageObjectURLs m
    => LogToConsole m

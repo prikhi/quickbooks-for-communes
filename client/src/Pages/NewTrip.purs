@@ -26,7 +26,7 @@ import Data.Either (Either(..))
 import Data.Enum (fromEnum)
 import Data.Foldable (fold)
 import Data.Int as Int
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Traversable (sequence)
 import Data.Tuple (Tuple(..))
 import Halogen as H
@@ -34,13 +34,18 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Web.Event.Event as E
+import Web.UIEvent.MouseEvent as ME
 
 import App
     ( class PreventDefaultSubmit, preventSubmit
+    , class PreventDefaultClick, preventClick
     , class LogToConsole, logShow
     , class DateTime, parseDate, now
     )
-import Forms (input, dateInput, dollarInput, submitButton, labelWrapper, optionalValue)
+import Forms
+    ( input, dateInput, dollarInput, submitButton, labelWrapper, optionalValue
+    , button
+    )
 import Server
     ( CompanyData(..), AccountData
     , class Server, companiesRequest, accountsRequest
@@ -52,6 +57,7 @@ import Validation as V
 component :: forall i o m
     . LogToConsole m
    => PreventDefaultSubmit m
+   => PreventDefaultClick m
    => DateTime m
    => Server m
    => H.Component HH.HTML Query i o m
@@ -75,6 +81,7 @@ type State =
     , tripNumber :: Maybe String
     , cashAdvance :: Maybe String
     , cashReturned :: Maybe String
+    , stops :: Array TripStop
     , errors :: V.FormErrors
     }
 
@@ -88,10 +95,44 @@ initial =
     , tripNumber: Nothing
     , cashAdvance: Nothing
     , cashReturned: Nothing
+    , stops: [ initialStop ]
     , errors: V.empty
     }
 
+type TripStop =
+    { name :: Maybe String
+    , stopTotal :: Maybe String
+    , transactions :: Array Transaction
+    }
 
+initialStop :: TripStop
+initialStop =
+    { name: Nothing
+    , stopTotal: Nothing
+    , transactions: Array.replicate 3 initialTransaction
+    }
+
+type Transaction =
+    { account :: Maybe String
+    , memo :: Maybe String
+    , amount :: Maybe String
+    , tax :: Maybe String
+    , total :: Maybe String
+    , isReturn :: Boolean
+    }
+
+initialTransaction :: Transaction
+initialTransaction =
+    { account: Nothing
+    , memo: Nothing
+    , amount: Nothing
+    , tax: Just "5.3"
+    , total: Nothing
+    , isReturn: false
+    }
+
+
+-- TODO: Break out into TripStopQuery & TripTransactionQuery types.
 data Query a
     = Initialize a
     -- ^ Get the current date & set the Date & Trip Number fields.
@@ -101,6 +142,17 @@ data Query a
     | InputNumber String a
     | InputAdvance String a
     | InputReturned String a
+    | RemoveStop Int a
+    | AddStop a
+    | StopInputName Int String a
+    | StopInputTotal Int String a
+    | StopAddRows Int ME.MouseEvent a
+    | TransactionInputMemo Int Int String a
+    | TransactionInputAmount Int Int String a
+    | TransactionInputTax Int Int String a
+    | TransactionInputTotal Int Int String a
+    | TransactionCheckReturn Int Int Boolean a
+    | TransactionClickRemove Int Int ME.MouseEvent a
     | SubmitForm E.Event a
     -- ^ Validate & POST the form.
 
@@ -109,6 +161,7 @@ eval :: forall m
     . MonadState State m
    => LogToConsole m
    => PreventDefaultSubmit m
+   => PreventDefaultClick m
    => DateTime m
    => Server m
    => Query ~> m
@@ -152,6 +205,47 @@ eval = case _ of
         pure next
     InputReturned str next -> do
         H.modify_ (_ { cashReturned = Just str })
+        pure next
+    RemoveStop index next -> do
+        deleteStop index
+        pure next
+    AddStop next -> do
+        H.modify_ $ \st -> st { stops = st.stops <> [ initialStop ] }
+        pure next
+    StopInputName index str next -> do
+        updateStop index (_ { name = Just str })
+        pure next
+    StopInputTotal index str next -> do
+        updateStop index (_ { stopTotal = Just str })
+        pure next
+    StopAddRows index ev next -> do
+        updateStop index $ \stop -> stop {
+            transactions =
+                stop.transactions <> Array.replicate 3 initialTransaction
+            }
+        preventClick ev
+        pure next
+    TransactionInputMemo stopIndex transIndex str next -> do
+        updateTransaction stopIndex transIndex (_ { memo = Just str })
+        pure next
+    TransactionInputAmount stopIndex transIndex str next -> do
+        updateTransaction stopIndex transIndex (_ { amount = Just str })
+        recalculateTransactionTotal stopIndex transIndex
+        pure next
+    TransactionInputTax stopIndex transIndex str next -> do
+        updateTransaction stopIndex transIndex (_ { tax = Just str })
+        recalculateTransactionTotal stopIndex transIndex
+        pure next
+    TransactionInputTotal stopIndex transIndex str next -> do
+        updateTransaction stopIndex transIndex (_ { total = Just str })
+        clearAmountAndTax stopIndex transIndex
+        pure next
+    TransactionCheckReturn stopIndex transIndex val next -> do
+        updateTransaction stopIndex transIndex (_ { isReturn = val })
+        pure next
+    TransactionClickRemove stopIndex transIndex ev next -> do
+        deleteTransaction stopIndex transIndex
+        preventClick ev
         pure next
     SubmitForm ev next -> do
         st <- H.get
@@ -218,12 +312,68 @@ eval = case _ of
         if int < 10 then
             "0" <> show int
         else show int
+    -- Update the TripStop at the given index.
+    updateStop :: forall m_
+        . MonadState State m_
+       => Int -> (TripStop -> TripStop) -> m_ Unit
+    updateStop index updater =
+        H.modify_ $ \st ->
+            st { stops =
+                fromMaybe st.stops $ Array.modifyAt index updater st.stops
+            }
+    deleteStop :: forall m_. MonadState State m_ => Int -> m_ Unit
+    deleteStop index =
+        H.modify_ $ \st ->
+            st { stops =
+                fromMaybe st.stops $ Array.deleteAt index st.stops
+            }
+    -- Update the Transaction for a TripStop at the given indexes.
+    updateTransaction :: forall m_
+        . MonadState State m_
+       => Int -> Int -> (Transaction -> Transaction) -> m_ Unit
+    updateTransaction stopIndex transIndex updater =
+        updateStop stopIndex $ \stop ->
+            stop { transactions =
+                fromMaybe stop.transactions
+                    $ Array.modifyAt transIndex updater stop.transactions
+            }
+    -- Delete the Transaction for a TripStop at the given indexes.
+    deleteTransaction :: forall m_
+        . MonadState State m_
+       => Int -> Int -> m_ Unit
+    deleteTransaction stopIndex transIndex =
+        updateStop stopIndex $ \stop ->
+            stop { transactions =
+                 fromMaybe stop.transactions
+                    $ Array.deleteAt transIndex stop.transactions
+            }
+    -- Set the Total Amount for a Transaction if it's Amount is entered.
+    recalculateTransactionTotal :: forall m_
+        . MonadState State m_
+       => Int -> Int -> m_ Unit
+    recalculateTransactionTotal stopIndex transIndex =
+        updateTransaction stopIndex transIndex $ \transaction ->
+            transaction { total = map (Decimal.toFixed 2) $ calculateTotal transaction }
+    -- Calculate the total from the Tax & Amount, Defaulting the Tax to 0% if
+    -- not present.
+    calculateTotal :: Transaction -> Maybe Decimal.Decimal
+    calculateTotal transaction =
+        let taxMultiplier =
+                fromMaybe (Decimal.fromInt 1)
+                $ map (\percent -> Decimal.fromInt 1 + percent / Decimal.fromInt 100)
+                    $ toDecimal transaction.tax
+        in (*) <$> toDecimal transaction.amount <*> pure taxMultiplier
+    -- Clear the Amount & Tax % fields for a TripStop's Transaction.
+    clearAmountAndTax :: forall m_. MonadState State m_ => Int -> Int -> m_ Unit
+    clearAmountAndTax stopIndex transIndex =
+        updateTransaction stopIndex transIndex
+            (_ { amount = Nothing, tax = Nothing })
 
 
 -- | Render the Add a Trip form.
 render :: State -> H.ComponentHTML Query
 render st =
-    HH.form [ HE.onSubmit $ HE.input SubmitForm ]
+    HH.form [ HE.onSubmit $ HE.input SubmitForm ] $
         [ companySelect st.company st.companies
         , dateInput "Date" st.date InputDate (errors "date")
             "The day you went on the trip."
@@ -236,10 +386,196 @@ render st =
         , dollarInput "Cash Returned" st.cashReturned InputReturned (errors "return")
             "The amount of cash remaining after your trip."
         , cashSpentInput st
-        , submitButton "Submit Trip"
         ]
+        <> Array.mapWithIndex (renderTripStop st.errors) st.stops
+        <> [ button "Add Stop" HP.ButtonButton (H.ClassName "primary") AddStop
+           , submitButton "Submit Trip"
+           ]
   where
     errors field = V.getFieldErrors field st.errors
+
+
+-- | Render the fieldset for a TripStop.
+renderTripStop :: V.FormErrors -> Int -> TripStop -> H.ComponentHTML Query
+renderTripStop formErrors stopIndex tripStop =
+    HH.fieldset_
+        [ HH.legend_ [ HH.text stopLabel ]
+        , input "Stop Name" HP.InputText tripStop.name (StopInputName stopIndex) (errors "name")
+            "The name of the store."
+        , dollarInput "Total Spent" tripStop.stopTotal (StopInputTotal stopIndex) (errors "total")
+            "The amount spent at the store."
+        , renderTransactionTable formErrors stopIndex tripStop.stopTotal tripStop.transactions
+        , button "Remove Stop" HP.ButtonButton (H.ClassName "danger") (RemoveStop stopIndex)
+        ]
+  where
+    errors :: String -> Array String
+    errors field =
+        V.getFieldErrors ("trip-stop-" <> show stopIndex <> "-" <> field)
+            formErrors
+    stopLabel = case tripStop.name of
+        Nothing ->
+            "Trip Stop"
+        Just "" ->
+            "Trip Stop"
+        Just str ->
+            "Trip Stop: " <> str
+
+renderTransactionTable :: V.FormErrors -> Int -> Maybe String -> Array Transaction -> H.ComponentHTML Query
+renderTransactionTable formErrors stopIndex stopTotal transactions =
+  let
+    transactionTotal =
+        Array.foldl sumTotals (Decimal.fromInt 0) transactions
+    outOfBalance =
+        fromMaybe transactionTotal
+            $ (-) <$> toDecimal stopTotal <*> pure transactionTotal
+  in
+    HH.table_
+        [ HH.thead_
+            [ HH.th_ [ HH.text "Account" ]
+            , HH.th_ [ HH.text "Details" ]
+            , HH.th_ [ HH.text "Cost" ]
+            , HH.th_ [ HH.text "Tax %" ]
+            , HH.th_ [ HH.text "Total Cost" ]
+            , HH.th_ [ HH.text "Return?" ]
+            , HH.th_ []
+            ]
+        , HH.tbody_
+            $ Array.mapWithIndex (renderTransaction formErrors stopIndex)
+                transactions
+            <> [ HH.tr_
+                [ HH.td [ HP.colSpan 7 ]
+                    [ HH.small_
+                        [ HH.a
+                            [ HP.href "#"
+                            , HP.title "Add Rows"
+                            , HE.onClick $ HE.input $ StopAddRows stopIndex
+                            ]
+                            [ HH.text "Add Rows" ]
+                        ]
+                    ]
+                ]
+               ]
+        , HH.tfoot_
+            [ HH.tr_
+                [ HH.th [ HP.colSpan 4 ] [ HH.text "Total:"]
+                , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 transactionTotal]
+                ]
+            -- TODO: Color amount when out of balance
+            , HH.tr_
+                [ HH.th [ HP.colSpan 4 ] [ HH.text "Out of Balance:" ]
+                , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 outOfBalance ]
+                ]
+            ]
+        ]
+  where
+    sumTotals :: Decimal.Decimal -> Transaction -> Decimal.Decimal
+    sumTotals acc transaction =
+        let multiplier = Decimal.fromInt $
+                if transaction.isReturn
+                    then -1
+                    else 1
+        in
+            fromMaybe acc
+                $ (+) <$> pure acc <*> map (\d -> multiplier * d) (toDecimal transaction.total)
+
+
+-- | Render the form row for a
+-- | TODO: Highlight errors & render another row below w/ messages.
+renderTransaction :: V.FormErrors -> Int -> Int -> Transaction -> H.ComponentHTML Query
+renderTransaction formErrors stopIndex transactionIndex transaction =
+    HH.tr_
+        [ HH.td_ [ HH.text "ACCOUNT SELECT!" ]
+        , HH.td_
+            [ tableInput "memo" transaction.memo
+                (mkAction TransactionInputMemo)
+                false
+            ]
+        , HH.td_
+            [ tableAmountInput "item-price" transaction.amount
+                (mkAction TransactionInputAmount)
+                false
+            ]
+        , HH.td_
+            [ tableAmountInput "tax-rate" transaction.tax
+                (mkAction TransactionInputTax)
+                false
+            ]
+        , HH.td_
+            [ tableAmountInput "item-total" transaction.total
+                (mkAction TransactionInputTotal)
+                false
+            ]
+        , HH.td_
+            [ tableCheckbox "returned" transaction.isReturn
+                (mkAction TransactionCheckReturn)
+            ]
+        , HH.td_
+            [ HH.a
+                [ HE.onClick $ HE.input (mkAction TransactionClickRemove)
+                , HP.href "#"
+                , HP.title "Delete Row"
+                ]
+                [ HH.text "X" ]
+            ]
+        ]
+  where
+    mkAction :: forall a. (Int -> Int -> a) -> a
+    mkAction action =
+        action stopIndex transactionIndex
+
+
+-- Inputs
+
+-- TODO: On Enter, raise message that moves to next row or adds new row
+tableInput :: forall p i
+    . String
+   -> Maybe String
+   -> (String -> Unit -> i Unit)
+   -> Boolean
+   -> HH.HTML p (i Unit)
+tableInput name value action hasError =
+    HH.input $
+        [ HP.type_ HP.InputText
+        , HP.name name
+        , HE.onValueInput $ HE.input action
+        ] <> optionalValue value <> errorClass hasError
+
+-- TODO: On Enter, raise message that moves to next row or adds new row
+tableAmountInput :: forall p i
+    . String
+   -> Maybe String
+   -> (String -> Unit -> i Unit)
+   -> Boolean
+   -> HH.HTML p (i Unit)
+tableAmountInput name value action hasError =
+    HH.input $
+        [ HP.type_ HP.InputNumber
+        , HP.name name
+        , HE.onValueInput $ HE.input action
+        , HP.min 0.0
+        , HP.step $ HP.Step 0.01
+        ] <> optionalValue value <> errorClass hasError
+
+-- TODO: On Enter, raise message that moves to next row or adds new row
+tableCheckbox :: forall p i
+    . String
+   -> Boolean
+   -> (Boolean -> Unit -> i Unit)
+   -> HH.HTML p (i Unit)
+tableCheckbox name value action =
+    HH.input $
+        [ HP.type_ HP.InputCheckbox
+        , HP.name name
+        , HE.onChecked $ HE.input action
+        , HP.checked value
+        ]
+
+errorClass :: forall r i. Boolean -> Array (H.IProp ( class :: String | r ) i)
+errorClass hasError =
+    if hasError then
+        [ HP.class_ $ H.ClassName "error" ]
+    else
+        []
 
 -- | Render a disabled input for the Cash Spent, calculated from the Trip
 -- | Advance and the Cash Returned.
@@ -254,9 +590,6 @@ cashSpentInput st =
             [ HP.type_ HP.InputNumber
             , HP.disabled true
             ] <> optionalValue (Decimal.toFixed 2 <$> cashSpent)
-  where
-    toDecimal :: Maybe String -> Maybe Decimal.Decimal
-    toDecimal = join <<< map Decimal.fromString
 
 -- | Render the select element for companies.
 companySelect :: Maybe String -> Array CompanyData -> H.ComponentHTML Query
@@ -276,3 +609,8 @@ companySelect selectedCompany companies =
                     [ HH.text company.name ]
             )
             companies
+
+
+-- | Attempt to convert a potential string into a Decimal
+toDecimal :: Maybe String -> Maybe Decimal.Decimal
+toDecimal = join <<< map Decimal.fromString
