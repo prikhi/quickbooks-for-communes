@@ -30,6 +30,8 @@ $input-error: $magenta
 $button-text: $body-bg
 $button-primary: $teal
 $button-primary-hover: lighten($button-primary, 10%)
+$button-danger: $magenta
+$button-danger-hover: darken($button-danger, 10%)
 
 
 
@@ -45,22 +47,31 @@ body
     font-family: $font-family
 
 /* Color and enlarge buttons */
-button.primary, a.link-button
+button, a.link-button
   font-size: 1rem
-  color: $button-text
-  background-color: $button-primary
   padding: 0.5em
+  margin-top: 0.625em
+  margin-right: 0.75em
   border: $body-text solid $border-width
   border-radius: $border-radius
   transition: 0.3s background-color
   cursor: pointer
 
-  &:hover
-    background-color: $button-primary-hover
-
 a.link-button
   display: inline-block
   text-decoration: none
+
+button.primary, a.link-button
+  color: $button-text
+  background-color: $button-primary
+  &:hover
+    background-color: $button-primary-hover
+
+button.danger
+  color: $gray-white
+  background-color: $button-danger
+  &:hover
+    background-color: $button-danger-hover
 
 
 
