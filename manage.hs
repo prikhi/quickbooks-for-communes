@@ -108,7 +108,7 @@ main = do
 
 -- | Make a production build.
 build :: MonadIO m => m ()
-build = initClient >> buildClient >> initServer >> buildServer
+build = clean >> initClient >> buildClient >> initServer >> buildServer
 
 -- | Start the frontend & backend build servers.
 watch :: MonadIO m => m ()
