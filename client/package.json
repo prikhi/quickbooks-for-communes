@@ -14,6 +14,7 @@
   "author": "",
   "license": "GPL-3.0",
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^5.8.1",
     "decimal.js": "^10.1.1",
     "parcel-bundler": "^1.12.3",
     "pscid": "^2.6.0",

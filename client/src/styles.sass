@@ -1,3 +1,5 @@
+@import '@fortawesome/fontawesome-free/css/all.css'
+
 /* Variables */
 $dark: #1A1B25
 $teal: #197278
@@ -8,6 +10,7 @@ $blue-gray: #8D99AE
 $light-gray: #CBD0DA
 $gray-white: #F4F5F7
 
+$danger-color: $magenta
 
 $body-text: $dark
 $body-bg: $gray-white
@@ -25,12 +28,12 @@ $nav-hover-line: $magenta
 $input-bg: lighten($body-bg, 2.5%)
 $input-focus: $teal
 $input-focus-spread: 4px
-$input-error: $magenta
+$input-error: $danger-color
 
 $button-text: $body-bg
 $button-primary: $teal
 $button-primary-hover: lighten($button-primary, 10%)
-$button-danger: $magenta
+$button-danger: $danger-color
 $button-danger-hover: darken($button-danger, 10%)
 
 
@@ -45,6 +48,14 @@ body
   background-color: $body-bg
   input
     font-family: $font-family
+
+.danger
+  color: $danger-color
+
+a.danger
+  transition: color 0.2s ease-in
+  &:hover
+    color: darken($danger-color, 10%)
 
 /* Color and enlarge buttons */
 button, a.link-button

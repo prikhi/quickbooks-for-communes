@@ -514,8 +514,9 @@ renderTransaction formErrors stopIndex transactionIndex transaction =
                 [ HE.onClick $ HE.input (mkAction TransactionClickRemove)
                 , HP.href "#"
                 , HP.title "Delete Row"
+                , HP.class_ $ H.ClassName "danger"
                 ]
-                [ HH.text "X" ]
+                [ HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [] ]
             ]
         ]
   where
