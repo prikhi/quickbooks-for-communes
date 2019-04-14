@@ -14,6 +14,5 @@
 /client/.purs*
 /client/.psa*
 /client/.spago
-/client/index.js
 /client/.cache
 /client/dist
