@@ -7,7 +7,7 @@
     --ghc-options -Wincomplete-record-updates
     --ghc-options -Wincomplete-uni-patterns
     --ghc-options -Wredundant-constraints
-    --resolver lts-13.15
+    --resolver lts-13.16
     --package ansi-terminal
     --package async
     --package directory
