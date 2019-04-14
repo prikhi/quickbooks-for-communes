@@ -1,0 +1,16 @@
+{
+    "plugins": {
+        "posthtml-favicons": {
+            "root": "src",
+            "configuration": {
+                "path": "/",
+                "appName": "QuickBooks for Communes",
+                "appDescripton": "A Communard-Friendly Interface to QuickBooks",
+                "developerName": "Pavan Rikhi",
+                "developerURL": "https://github.com/prikhi",
+                "background": "#F4F6F700",
+                "theme_color": "#197278"
+            }
+        }
+    }
+}
