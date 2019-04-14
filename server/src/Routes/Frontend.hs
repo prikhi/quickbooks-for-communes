@@ -31,7 +31,7 @@ import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
 import           Database.Persist.Sql           ( (==.)
                                                 , Entity(..)
-                                                , SelectOpt(Desc)
+                                                , SelectOpt(..)
                                                 , selectList
                                                 , insert_
                                                 , get
@@ -77,7 +77,7 @@ companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
 accounts :: SqlDB m => CompanyId -> m [AccountData]
 accounts companyId = runDB $ map convert <$> selectList
     [AccountCompany ==. companyId, AccountIsActive ==. True]
-    [Desc AccountName]
+    [Asc AccountName]
   where
     convert (Entity aId a) = AccountData
         { adAccountId          = aId
