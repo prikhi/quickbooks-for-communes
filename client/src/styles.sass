@@ -54,7 +54,7 @@ body
 
 a.danger
   transition: color 0.2s ease-in
-  &:hover
+  &:hover, &:focus
     color: darken($danger-color, 10%)
 
 /* Color and enlarge buttons */
@@ -75,13 +75,13 @@ a.link-button
 button.primary, a.link-button
   color: $button-text
   background-color: $button-primary
-  &:hover
+  &:hover, &:focus
     background-color: $button-primary-hover
 
 button.danger
   color: $gray-white
   background-color: $button-danger
-  &:hover
+  &:hover, &:focus
     background-color: $button-danger-hover
 
 
@@ -250,7 +250,7 @@ nav
       background-color: $nav-active-bg
 
     /* Contrasting color on hover */
-    &:active, &:hover
+    &:active, &:hover, &:focus
       background-color: $nav-hover-bg
 
     /* Show underline highlight when hovering using :after element */
@@ -265,7 +265,7 @@ nav
       transition: 0.3s opacity
       opacity: 0
 
-    &:active > span::after, &:hover > span::after
+    &:active > span::after, &:hover > span::after, &:focus > span::after
       opacity: 1
 
   /* Larger site/brand/homepage link w/ no hover effects */
@@ -275,7 +275,7 @@ nav
     padding: 0
     margin-right: 0.75em
 
-    &:active, &:hover
+    &:active, &:hover, &:focus
       color: inherit
       background-color: inherit
 
