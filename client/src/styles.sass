@@ -120,8 +120,11 @@ table
       background-color: darken($body-bg, 7.5%)
   /* Add borders & spacing to cells */
   td, th
-    padding: 2px
-    border-bottom: solid 1px $light-gray
+    padding: 0.125em
+    border-bottom: solid $border-width $light-gray
+  thead th
+    border-bottom-color: darken($light-gray, 20%)
+    padding-bottom: 0.25em
   /* Table footers are used for totals, counters, out of balance amounts, etc */
   tfoot
     th
