@@ -329,7 +329,7 @@ nav
       background-color: $nav-active-bg
 
     /* Contrasting color on hover */
-    &:active, &:hover, &:focus
+    &:active, &:hover
       background-color: $nav-hover-bg
 
     /* Show underline highlight when hovering using :after element */
@@ -344,7 +344,7 @@ nav
       transition: 0.3s opacity
       opacity: 0
 
-    &:active > span::after, &:hover > span::after, &:focus > span::after
+    &:active > span::after, &:hover > span::after
       opacity: 1
 
   /* Larger site/brand/homepage link w/ no hover effects */
@@ -354,7 +354,7 @@ nav
     padding: 0
     margin-right: 0.75em
 
-    &:active, &:hover, &:focus
+    &:active, &:hover
       color: inherit
       background-color: inherit
 
