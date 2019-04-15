@@ -134,6 +134,29 @@ table
 
 /** Forms **/
 
+/* Apply standardized styling to all inputs like sizes, spacing, colors, a
+ * focus glow, & special styling for disabled inputs.
+ */
+input, select
+  line-height: 1
+  border: $border-width solid $body-text
+  box-sizing: border-box
+  background-color: $input-bg
+  box-shadow: inset 0 1px 1px rgba(black, 0.1)
+  // Transition the focus highlights
+  transition: 0.3s border-color, 0.3s box-shadow
+
+  &[disabled]
+    cursor: not-allowed
+    color: lighten($body-text, 30%)
+    background-color: darken($input-bg, 10%)
+
+  // Disable the default outline, use the border color & a box shadow instead
+  &:focus
+    outline: 0
+    border-color: $input-focus
+    box-shadow: inset 0 1px 1px rgba($body-bg, 0.075), 0 0 $input-focus-spread rgba($input-focus, 0.8)
+
 /* Show labels, inputs, & errors in side-by-side columns */
 label
   display: flex
@@ -152,30 +175,12 @@ label
       margin-bottom: 0
 
   > input, > select
+    font-size: 1rem
+    border-radius: $border-radius
+    padding: 0.35em 0.5em
     width: 33%
     margin-top: auto
     margin-left: 1em
-    line-height: 1
-    font-size: 1rem
-    border: $border-width solid $body-text
-    border-radius: $border-radius
-    padding: 0.35em 0.5em
-    box-sizing: border-box
-    background-color: $input-bg
-    box-shadow: inset 0 1px 1px rgba(black, 0.1)
-    // Transition the focus highlights
-    transition: 0.3s border-color, 0.3s box-shadow
-
-    &[disabled]
-      cursor: not-allowed
-      color: lighten($body-text, 30%)
-      background-color: darken($input-bg, 10%)
-
-    // Disable the default outline, use the border color & a box shadow instead
-    &:focus
-      outline: 0
-      border-color: $input-focus
-      box-shadow: inset 0 1px 1px rgba($body-bg, 0.075), 0 0 $input-focus-spread rgba($input-focus, 0.8)
 
   > ul
     font-weight: bold
