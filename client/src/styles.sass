@@ -274,18 +274,25 @@ p.success
 
 
 /* Forms withing tables */
-table
-  /* Fix input sizing inside tables */
-  input
-    width: 100%
-    box-sizing: border-box
-  /* Limit width of "Tax %" fields */
-  input[name="tax-rate"]
-    width: 4rem
+form table
+  th
+    font-size: 0.9rem
+    /* Keep header text in a single line */
+    white-space: nowrap
 
-  /* Limit width of Cost & Total Cost fields */
-  input[name="item-total"], input[name="item-price"]
-    width: 5.5rem
+  /* Fix input sizing inside tables */
+  input:not([type="checkbox"]):not([type="radio"])
+    width: 100%
+    padding: 0.25em
+    border-radius: #{$border-radius / 2}
+
+    /* Limit width of "Tax %" fields */
+    &[name="tax-rate"]
+      width: 5em
+
+    /* Limit width of Cost & Total Cost fields */
+    &[name="item-total"], &[name="item-price"]
+      width: 6.5em
 
 
 
