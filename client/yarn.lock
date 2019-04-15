@@ -5612,7 +5612,7 @@ punycode@^2.1.0, punycode@^2.1.1:
   resolved "https://registry.yarnpkg.com/punycode/-/punycode-2.1.1.tgz#b58b010ac40c22c5657616c8d2c2c02c7bf479ec"
   integrity sha512-XRsRjdf+j5ml+y/6GKHPZbrF/8p2Yga0JPtdqTIY2Xe5ohJPD9saDJJLPvp9+NSBprVvevdXZybnj2cv8OEd0A==
 
-purescript@^0.12.3:
+purescript@^0.12.4:
   version "0.12.4"
   resolved "https://registry.yarnpkg.com/purescript/-/purescript-0.12.4.tgz#885a82f02270cb7ffdd1fda8ddf5e6071c86c6b2"
   integrity sha512-VwIKmjcVQzk9cHuzu1ESyjKpZr+mRIjEhZbk5q8N7G17Deog/eJ3EZ/7s8Z/x9rmeYQmd2WPgRN0W5MpWPcvug==
@@ -6062,7 +6062,7 @@ safer-eval@^1.3.0:
   dependencies:
     clones "^1.2.0"
 
-sass@^1.17.3:
+sass@^1.18.0:
   version "1.18.0"
   resolved "https://registry.yarnpkg.com/sass/-/sass-1.18.0.tgz#f34371c31e268e555c2ac8e43d2b64d194e7d090"
   integrity sha512-Mc579V+BhH693tqt+lvph+gmRqmC6BjtsEVsjkW1944DEA5a0wPuCi781hL3fY4EDuqZnEVPbu42CZRywwE97g==
@@ -6283,7 +6283,7 @@ source-map@^0.5.0, source-map@^0.5.3, source-map@^0.5.6:
   resolved "https://registry.yarnpkg.com/source-map/-/source-map-0.5.7.tgz#8a039d2d1021d22d1ea14c80d8ea468ba2ef3fcc"
   integrity sha1-igOdLRAh0i0eoUyA2OpGi6LvP8w=
 
-spago@^0.7.1:
+spago@^0.7.5:
   version "0.7.5"
   resolved "https://registry.yarnpkg.com/spago/-/spago-0.7.5.tgz#627a05c32c92c0e0cbbd62579e97c95e3c90b839"
   integrity sha512-yca9inS0tq26s+wdtr6Qm6EAyU6nmjZqRvqWI/UMNEXwGXw5MJoEo3H2i6xwPZPg2xegKOR15AvocupXnHy0iA==

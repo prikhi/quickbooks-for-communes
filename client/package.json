@@ -18,13 +18,13 @@
     "decimal.js": "^10.1.1",
     "parcel-bundler": "^1.12.3",
     "pscid": "^2.6.0",
-    "purescript": "^0.12.3",
-    "spago": "^0.7.1"
+    "purescript": "^0.12.4",
+    "spago": "^0.7.5"
   },
   "devDependencies": {
     "express": "^4.16.4",
     "http-proxy-middleware": "^0.19.1",
     "posthtml-favicons": "^1.2.0",
-    "sass": "^1.17.3"
+    "sass": "^1.18.0"
   }
 }
