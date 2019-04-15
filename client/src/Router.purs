@@ -23,10 +23,12 @@ import App
     ( AppM
     , class Navigation, newUrl
     , class PreventDefaultClick, preventClick
+    , class PreventDefaultEnter
     , class PreventDefaultSubmit
     , class ManageObjectURLs
     , class LogToConsole
     , class DateTime
+    , class FocusElement
     )
 import Server (class Server)
 
@@ -129,11 +131,13 @@ eval = case _ of
 -- | Render the application.
 render :: forall m
     . PreventDefaultSubmit m
+   => PreventDefaultEnter m
    => PreventDefaultClick m
    => Server m
    => ManageObjectURLs m
    => LogToConsole m
    => DateTime m
+   => FocusElement m
    => State -> H.ParentHTML Query ChildQuery ChildSlot m
 render { currentPage } =
     HH.div_
@@ -169,11 +173,13 @@ renderHeader currentPage =
 -- | Render the page's component.
 renderPage :: forall m
     . PreventDefaultSubmit m
+   => PreventDefaultEnter m
    => PreventDefaultClick m
    => Server m
    => ManageObjectURLs m
    => LogToConsole m
    => DateTime m
+   => FocusElement m
    => Route -> H.ParentHTML Query ChildQuery ChildSlot m
 renderPage = case _ of
     Home ->
