@@ -442,21 +442,9 @@ renderTransactionTable formErrors stopIndex stopTotal transactions =
         , HH.tbody_
             $ Array.mapWithIndex (renderTransaction formErrors stopIndex)
                 transactions
-            <> [ HH.tr_
-                [ HH.td [ HP.colSpan 7 ]
-                    [ HH.small_
-                        [ HH.a
-                            [ HP.href "#"
-                            , HP.title "Add Rows"
-                            , HE.onClick $ HE.input $ StopAddRows stopIndex
-                            ]
-                            [ HH.text "Add Rows" ]
-                        ]
-                    ]
-                ]
-               ]
         , HH.tfoot_
-            [ HH.tr_
+            [ HH.tr_ [ addRowsCell ]
+            , HH.tr_
                 [ HH.th [ HP.colSpan 4 ] [ HH.text "Total:"]
                 , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 transactionTotal]
                 ]
@@ -468,6 +456,18 @@ renderTransactionTable formErrors stopIndex stopTotal transactions =
             ]
         ]
   where
+    addRowsCell :: forall p. H.HTML p Query
+    addRowsCell =
+        HH.td [ HP.colSpan 7 ]
+            [ HH.small_
+                [ HH.a
+                    [ HP.href "#"
+                    , HP.title "Add Rows"
+                    , HE.onClick $ HE.input $ StopAddRows stopIndex
+                    ]
+                    [ HH.text "Add Rows" ]
+                ]
+            ]
     sumTotals :: Decimal.Decimal -> Transaction -> Decimal.Decimal
     sumTotals acc transaction =
         let multiplier = Decimal.fromInt $
