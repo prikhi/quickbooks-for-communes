@@ -117,10 +117,10 @@ watch = do
     void . liftIO $ do
         printLog Info "Starting Client Builder"
         clientBuild <- async
-            $ run "npm" ["run", "watch"] "./client/" clientOutput
+            $ run "yarn" ["run", "watch"] "./client/" clientOutput
         printLog Info "Starting Client Dev Server"
         clientServe <- async
-            $ run "npm" ["run", "serve"] "./client/" clientOutput
+            $ run "yarn" ["run", "serve"] "./client/" clientOutput
         printLog Info "Starting Server Builder"
         server <- async $ run
             "ghcid"
@@ -212,13 +212,13 @@ buildServer = do
 -- | Install the NPM dependencies & the Purescript dependencies.
 initClient :: MonadIO m => m ()
 initClient = do
-    installDependency "npm"
+    installDependency "yarn"
                       ["install"]
                       "./client/"
                       clientOutput
                       "Javascript Dependencies"
-    installDependency "npx"
-                      ["spago", "install"]
+    installDependency "yarn"
+                      ["run", "spago", "install"]
                       "./client/"
                       clientOutput
                       "Purescript Dependencies"
@@ -227,7 +227,7 @@ initClient = do
 buildClient :: MonadIO m => m ()
 buildClient = do
     printLog Info "Building Client"
-    run "npm" ["run", "build"] "./client/" clientOutput >>= \case
+    run "yarn" ["run", "build"] "./client/" clientOutput >>= \case
         ExitSuccess -> printLog Success "Client Build Completed"
         ExitFailure _ ->
             printLog Failed "Client Build Failed" >> liftIO exitFailure

@@ -8,6 +8,7 @@ dist: xenial
 
 # Caching so the next build will be fast too.
 cache:
+  yarn: true
   directories:
     - $HOME/.stack
 
@@ -18,6 +19,10 @@ addons:
       - libgmp-dev
       - python-docutils
       - python-pygments
+
+before_install:
+  - curl -o- -L https://yarnpkg.com/install.sh | bash
+  - export PATH=$HOME/.yarn/bin:$PATH
 
 install:
   # Download and unpack the stack executable
