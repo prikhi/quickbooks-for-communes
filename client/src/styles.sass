@@ -52,11 +52,22 @@ body
 small
   font-size: 0.75rem
 
+a
+  color: $teal
+  transition: color 0.2s ease-in, border 0.2s ease-in
+  text-decoration: none
+  border-bottom: 1px solid transparent
+  font-weight: bold
+  &:hover, &:focus
+    color: darken($teal, 15%)
+    border-bottom-color: darken($teal, 15%)
+
 .danger
   color: $danger-color
 
 a.danger
   transition: color 0.2s ease-in
+  border: none
   &:hover, &:focus
     color: darken($danger-color, 10%)
 
@@ -247,6 +258,9 @@ nav
     position: relative
     /* Transition backgrond color changes during hover */
     transition: 0.3s background-color
+    /* Unset styles applied to normal links */
+    border: none
+    font-weight: normal
 
     /* Lighter color for current page */
     &.active
