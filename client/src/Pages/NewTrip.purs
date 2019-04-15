@@ -483,46 +483,43 @@ renderTransactionTable formErrors stopIndex stopTotal transactions =
 -- | TODO: Highlight errors & render another row below w/ messages.
 renderTransaction :: V.FormErrors -> Int -> Int -> Transaction -> H.ComponentHTML Query
 renderTransaction formErrors stopIndex transactionIndex transaction =
-    HH.tr_
-        [ HH.td_ [ HH.text "ACCOUNT SELECT!" ]
-        , HH.td_
-            [ tableInput "memo" transaction.memo
-                (mkAction TransactionInputMemo)
-                false
-            ]
-        , HH.td_
-            [ tableAmountInput "item-price" transaction.amount
+    HH.tr_ $ map centeredCell
+        [ [ HH.text "ACCOUNT SELECT!" ]
+        , [ tableInput "memo" transaction.memo
+            (mkAction TransactionInputMemo)
+            false
+          ]
+        , [ tableAmountInput "item-price" transaction.amount
                 (mkAction TransactionInputAmount)
                 false
-            ]
-        , HH.td_
-            [ tableAmountInput "tax-rate" transaction.tax
+          ]
+        , [ tableAmountInput "tax-rate" transaction.tax
                 (mkAction TransactionInputTax)
                 false
-            ]
-        , HH.td_
-            [ tableAmountInput "item-total" transaction.total
+          ]
+        , [ tableAmountInput "item-total" transaction.total
                 (mkAction TransactionInputTotal)
                 false
-            ]
-        , HH.td_
-            [ tableCheckbox "returned" transaction.isReturn
+          ]
+        , [ tableCheckbox "returned" transaction.isReturn
                 (mkAction TransactionCheckReturn)
-            ]
-        , HH.td_
-            [ HH.a
+          ]
+        , [ HH.a
                 [ HE.onClick $ HE.input (mkAction TransactionClickRemove)
                 , HP.href "#"
                 , HP.title "Delete Row"
                 , HP.class_ $ H.ClassName "danger"
                 ]
                 [ HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [] ]
-            ]
+          ]
         ]
   where
     mkAction :: forall a. (Int -> Int -> a) -> a
     mkAction action =
         action stopIndex transactionIndex
+    centeredCell :: forall p i. Array (H.HTML p i) -> H.HTML p i
+    centeredCell =
+        HH.td [ HP.class_ $ H.ClassName "align-center" ]
 
 
 -- Inputs
