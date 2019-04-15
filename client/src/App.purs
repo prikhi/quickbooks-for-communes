@@ -30,7 +30,10 @@ import Routing.PushState (PushStateInterface)
 import Web.Event.Event as E
 import Web.File.Blob (Blob)
 import Web.File.Url as F
+import Web.HTML.HTMLElement as HTMLElement
 import Web.HTML.Event.EventTypes as ET
+import Web.UIEvent.KeyboardEvent as KE
+import Web.UIEvent.KeyboardEvent.EventTypes as KET
 import Web.UIEvent.MouseEvent as ME
 import Web.UIEvent.MouseEvent.EventTypes as MET
 
@@ -106,6 +109,24 @@ instance prevDefClickHalogen :: PreventDefaultClick m
     preventClick = H.lift <<< preventClick
 
 
+class Monad m <= PreventDefaultEnter m where
+    -- | Prevent the default event on keydown events for the Enter key.
+    -- | Returns true if the event was prevented.
+    preventEnter :: KE.KeyboardEvent -> m Boolean
+
+instance prevDefEnterApp :: PreventDefaultEnter AppM where
+    preventEnter ev =
+        let event = KE.toEvent ev in
+        if E.type_ event == KET.keydown && KE.key ev == "Enter" then
+            liftEffect (E.preventDefault event) *> pure true
+        else
+            pure false
+
+instance prevDefEnterHalogen :: PreventDefaultEnter m
+    => PreventDefaultEnter (H.HalogenM s f g p o m) where
+    preventEnter = H.lift <<< preventEnter
+
+
 class Monad m <= PreventDefaultSubmit m where
     preventSubmit :: E.Event -> m Unit
 
@@ -169,3 +190,16 @@ instance dateTimeHalogen :: DateTime m
     => DateTime (H.HalogenM s f g p o m) where
     parseDate = H.lift <<< parseDate
     now = H.lift $ now
+
+
+-- Focusing
+
+class Monad m <= FocusElement m where
+    focusElement :: HTMLElement.HTMLElement -> m Unit
+
+instance focusApp :: FocusElement AppM where
+    focusElement = H.liftEffect <<< HTMLElement.focus
+
+instance focusHalogen :: FocusElement m
+    => FocusElement (H.HalogenM s f g p o m) where
+    focusElement = H.lift <<< focusElement
