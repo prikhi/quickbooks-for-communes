@@ -25,7 +25,8 @@ main = do
         driver <- runUI app unit body
         liftEffect <<< void $ matches router (handlePathChange driver) nav
   where
-    handlePathChange :: forall o. H.HalogenIO Query o Aff -> Maybe Route -> Route -> Effect Unit
+    handlePathChange :: forall o
+        . H.HalogenIO Query o Aff -> Maybe Route -> Route -> Effect Unit
     handlePathChange driver _ route = do
         logShow route
-        launchAff_ $ driver.query $ H.action $ UpdateRoute route
+        launchAff_ $ driver.query $ H.tell $ UpdateRoute route
