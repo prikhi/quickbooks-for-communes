@@ -5,6 +5,7 @@ TODO:
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
     * Transaction tables
+    * Store Credit fieldsets
     * Form validation
     * Form submission
     * Use custom selects? https://citizennet.github.io/purescript-halogen-select/
@@ -139,6 +140,7 @@ initialTransaction =
 
 
 -- TODO: Break out into TripStopQuery & TripTransactionQuery types.
+--       That might mean separate components for TripStop & Transactions...
 data Query a
     = Initialize a
     -- ^ Get the current date & set the Date & Trip Number fields.
