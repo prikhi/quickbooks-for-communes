@@ -114,7 +114,12 @@ let mkPackage =
 let upstream =
       https://raw.githubusercontent.com/purescript/package-sets/psc-0.12.4-20190413/src/packages.dhall sha256:a63cc6dbd2190cc4d4f898e4db59281e4bbd09a022de6036e379bc991e23e705
 
-let overrides = {=}
+let overrides =
+  { halogen =
+      upstream.halogen // { version = "v5.0.0-rc.4" }
+  , halogen-vdom =
+      upstream.halogen-vdom // { version = "v6.1.0" }
+  }
 
 let additions = {=}
 
