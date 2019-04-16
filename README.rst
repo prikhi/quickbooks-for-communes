@@ -56,13 +56,15 @@ Build
 production builds, rebuild the code on file changes, & clean any build
 artifacts.
 
-You need `Stack`_ installed. Then you can simply run ``./manage.hs`` to start
-the development servers. ``./manage.hs build`` will make production builds for
-the server & client, while ``./manage.hs clean`` will remove the built files.
+You need `Stack`_ & `Yarn`_ installed. Then you can simply run ``./manage.hs``
+to start the development servers. ``./manage.hs build`` will make production
+builds for the server & client, while ``./manage.hs clean`` will remove the
+built files.
 
 You can also do some lower-level building of the frontend & backend.
 
 .. _Stack: https://docs.haskellstack.org/en/stable/README/
+.. _Yarn: https://yarnpkg.com/
 
 
 Client
@@ -74,15 +76,15 @@ serve the UI during development.
 .. code:: bash
 
    cd client
-   npm install
-   npm run watch
-   npm run serve
+   yarn install
+   yarn run watch
+   yarn run serve
 
 The ``watch`` command rebuilds the client when the source files change, and
 ``serve`` starts a development server that builds the styles, serves the index,
 & redirects requests to the ``/api/`` path to the backend server.
 
-To assemble the code, styles, & HTML for production, run ``npm run build``.
+To assemble the code, styles, & HTML for production, run ``yarn run build``.
 
 .. _Spago: https://github.com/spacchetti/spago
 .. _pscid: https://github.com/kRITZCREEK/pscid
@@ -171,10 +173,10 @@ tell your QuickBooks computer to trust it:
 Documentation
 #############
 
-You can build the client's documentation with ``npm``::
+You can build the client's documentation with ``yarn``::
 
    cd client
-   npm run docs
+   yarn run docs
 
 The documentation will be placed in ``/client/generated-docs/index.html``.
 
