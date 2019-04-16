@@ -39,7 +39,7 @@ instance serverApp :: Server AppM where
     accountsRequest = liftAff <<< adRequest
     newCompanyRequest = liftAff <<< ncRequest
 
-instance serverHalogen :: Server m => Server (H.HalogenM s f g o p m) where
+instance serverHalogen :: Server m => Server (H.HalogenM s f g o m) where
     companiesRequest = H.lift companiesRequest
     accountsRequest = H.lift <<< accountsRequest
     newCompanyRequest = H.lift <<< newCompanyRequest

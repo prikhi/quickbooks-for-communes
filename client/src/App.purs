@@ -87,7 +87,7 @@ instance navEnv :: Navigation AppM where
         liftEffect $ nav.pushState (unsafeToForeign {}) url
 
 instance navHalogen :: Navigation m
-    => Navigation (H.HalogenM s f g p o m) where
+    => Navigation (H.HalogenM s f g o m) where
     newUrl = H.lift <<< newUrl
 
 
@@ -105,7 +105,7 @@ instance prevDefClickApp :: PreventDefaultClick AppM where
             pure unit
 
 instance prevDefClickHalogen :: PreventDefaultClick m
-    => PreventDefaultClick (H.HalogenM s f g p o m) where
+    => PreventDefaultClick (H.HalogenM s f g o m) where
     preventClick = H.lift <<< preventClick
 
 
@@ -123,7 +123,7 @@ instance prevDefEnterApp :: PreventDefaultEnter AppM where
             pure false
 
 instance prevDefEnterHalogen :: PreventDefaultEnter m
-    => PreventDefaultEnter (H.HalogenM s f g p o m) where
+    => PreventDefaultEnter (H.HalogenM s f g o m) where
     preventEnter = H.lift <<< preventEnter
 
 
@@ -138,7 +138,7 @@ instance prevDefSubmitApp :: PreventDefaultSubmit AppM where
             pure unit
 
 instance prevDefSubmitHalogen :: PreventDefaultSubmit m
-    => PreventDefaultSubmit (H.HalogenM s f g p o m) where
+    => PreventDefaultSubmit (H.HalogenM s f g o m) where
     preventSubmit = H.lift <<< preventSubmit
 
 
@@ -153,7 +153,7 @@ instance logToConsoleApp :: LogToConsole AppM where
     log = Console.log
 
 instance logToConsoleHalogen :: LogToConsole m
-    => LogToConsole (H.HalogenM s f g p o m) where
+    => LogToConsole (H.HalogenM s f g o m) where
     logShow = H.lift <<< logShow
     log = H.lift <<< log
 
@@ -169,7 +169,7 @@ instance manageObjectUrlsApp :: ManageObjectURLs AppM where
     revokeObjectURL = H.liftEffect <<< F.revokeObjectURL
 
 instance manageObjectUrlsHalogen :: ManageObjectURLs m
-    => ManageObjectURLs (H.HalogenM s f g p o m) where
+    => ManageObjectURLs (H.HalogenM s f g o m) where
     createObjectURL = H.lift <<< createObjectURL
     revokeObjectURL = H.lift <<< revokeObjectURL
 
@@ -187,7 +187,7 @@ instance dateTimeApp :: DateTime AppM where
         H.liftEffect nowDateTime
 
 instance dateTimeHalogen :: DateTime m
-    => DateTime (H.HalogenM s f g p o m) where
+    => DateTime (H.HalogenM s f g o m) where
     parseDate = H.lift <<< parseDate
     now = H.lift $ now
 
@@ -201,5 +201,5 @@ instance focusApp :: FocusElement AppM where
     focusElement = H.liftEffect <<< HTMLElement.focus
 
 instance focusHalogen :: FocusElement m
-    => FocusElement (H.HalogenM s f g p o m) where
+    => FocusElement (H.HalogenM s f g o m) where
     focusElement = H.lift <<< focusElement
