@@ -36,10 +36,10 @@ formErrors errs =
 -- Buttons
 
 -- | Render a standard `HH.button` element.
-button :: forall p i. String -> HP.ButtonType -> H.ClassName -> (Unit -> i Unit) -> HH.HTML p (i Unit)
+button :: forall p i. String -> HP.ButtonType -> H.ClassName -> i -> HH.HTML p i
 button label type_ class_ action =
     HH.button
-        [ HE.onClick $ HE.input_ action, HP.class_ class_, HP.type_ type_ ]
+        [ HE.onClick $ const $ Just action, HP.class_ class_, HP.type_ type_ ]
         [ HH.text label ]
 
 -- | Render a button input to submit a form. Uses the primary button styling.
@@ -58,19 +58,19 @@ dateInput :: forall p i
    -- ^ Label Text
    -> Maybe String
    -- ^ Value
-   -> (String -> Unit -> i Unit)
+   -> (String -> i)
    -- ^ onChange Action
    -> Array String
    -- ^ Errors
    -> String
    -- ^ Help Text
-   -> HH.HTML p (i Unit)
+   -> HH.HTML p i
 dateInput label value action errors helpText =
     labelWrapper label errors helpText $
         HH.input $
             [ HP.type_ HP.InputDate
             , HP.required true
-            , HE.onValueChange $ HE.input action
+            , HE.onValueChange $ Just <<< action
             ] <> optionalValue value
 
 
@@ -80,26 +80,27 @@ dollarInput :: forall p i
    -- ^ Label text
    -> Maybe String
    -- ^ Value
-   -> (String -> Unit -> i Unit)
+   -> (String -> i)
    -- ^ onChange Action
    -> Array String
    -- ^ Errors
    -> String
    -- ^ Help text
-   -> HH.HTML p (i Unit)
+   -> HH.HTML p i
 dollarInput label value action errors helpText =
     labelWrapper label errors helpText $
         HH.input $
             [ HP.type_ HP.InputNumber
             , HP.required true
-            , HE.onValueInput $ HE.input action
+            , HE.onValueInput $ Just <<< action
             , HP.min 0.0
             , HP.step $ HP.Step 0.01
             ] <> optionalValue value
 
 
 -- | The Label, Help Text, & Error wrapper around an `HH.input` element.
-labelWrapper :: forall p i. String -> Array String -> String -> HH.HTML p (i Unit) -> HH.HTML p (i Unit)
+labelWrapper :: forall p i
+    . String -> Array String -> String -> HH.HTML p i -> HH.HTML p i
 labelWrapper label errors helpText inputElement =
     HH.label errorClass
         [ HH.div_ $
@@ -111,7 +112,7 @@ labelWrapper label errors helpText inputElement =
               else HH.text ""
         ]
   where
-    helpElement :: forall p_ i_. Array (HH.HTML p_ (i_ Unit))
+    helpElement :: forall p_ i_. Array (HH.HTML p_ i_)
     helpElement =
         if helpText /= "" then [ HH.p_ [ HH.text helpText ] ] else []
     hasError :: Boolean
@@ -133,13 +134,13 @@ input :: forall p i
    -- ^ input `type`
    -> Maybe String
    -- ^ Value
-   -> (String -> Unit -> i Unit)
+   -> (String -> i)
    -- ^ onChange action
    -> Array String
    -- ^ Errors
    -> String
    -- ^ Help text
-   -> HH.HTML p (i Unit)
+   -> HH.HTML p i
 input label type_ value action errors helpText =
     HH.label errorClass
         [ HH.div_ $
@@ -148,14 +149,14 @@ input label type_ value action errors helpText =
         , HH.input $
             [ HP.type_ type_
             , HP.required true
-            , HE.onValueInput $ HE.input action
+            , HE.onValueInput $ Just <<< action
             ] <> optionalValue value
         , if hasError
               then HH.ul_ $ map (\e -> HH.li_ [HH.text e]) errors
               else HH.text ""
         ]
   where
-    helpElement :: forall p_ i_. Array (HH.HTML p_ (i_ Unit))
+    helpElement :: forall p_ i_. Array (HH.HTML p_ i_)
     helpElement =
         if helpText /= "" then [ HH.p_ [ HH.text helpText ] ] else []
     hasError :: Boolean
@@ -174,6 +175,3 @@ optionalValue = case _ of
     Nothing ->
         []
     Just val -> [ HP.value val ]
-
-
--- Helpers
