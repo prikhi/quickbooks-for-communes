@@ -5,12 +5,13 @@
 -}
 module Pages.NewCompany
     ( component
-    , Query(..)
+    , Query
     ) where
 
 import Prelude
 
 import Control.Monad.State (class MonadState)
+import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import Halogen as H
@@ -28,18 +29,18 @@ import Server (class Server, newCompanyRequest, NewCompanyData(..), QWCFile(..))
 import Validation as V
 
 
-component :: forall m i o
+component :: forall m q i o
     . PreventDefaultSubmit m
    => Server m
    => ManageObjectURLs m
-   => H.Component HH.HTML Query i o m
-component = H.lifecycleComponent
+   => H.Component HH.HTML q i o m
+component = H.mkComponent
     { initialState: const initial
     , render
-    , eval
-    , receiver: const Nothing
-    , initializer: Nothing
-    , finalizer: Just $ Destroy unit
+    , eval: H.mkEval $ H.defaultEval
+        { handleAction = eval
+        , finalize = Just Destroy
+        }
     }
 
 -- | The form data.
@@ -69,38 +70,36 @@ validate st = V.toEither <<< map NewCompany $
             <*> V.validateNonEmpty "password" st.password
 
 
+type Query = Const Void
+
 -- | Form input & submission events.
-data Query a
-    = InputName String a
-    | InputUser String a
-    | InputPass String a
-    | SubmitForm E.Event a
+data Action
+    = InputName String
+    | InputUser String
+    | InputPass String
+    | SubmitForm E.Event
     -- ^ Validate & Submit the Form to the Server.
-    | Destroy a
+    | Destroy
     -- ^ Revoke the objectURL.
 
 
 -- | Update & submit the form.
-eval :: forall m
-    . MonadState State m
-   => PreventDefaultSubmit m
+eval :: forall m g o
+    . PreventDefaultSubmit m
    => Server m
    => ManageObjectURLs m
-   => Query ~> m
+   => Action -> H.HalogenM State Action g o m Unit
 eval = case _ of
-    InputName str next -> do
+    InputName str -> do
         H.modify_ (_ { name = Just str })
         revalidate "name"
-        pure next
-    InputUser str next -> do
+    InputUser str -> do
         H.modify_ (_ { username = Just str })
         revalidate "username"
-        pure next
-    InputPass str next -> do
+    InputPass str -> do
         H.modify_ (_ { password = Just str })
         revalidate "password"
-        pure next
-    SubmitForm ev next -> do
+    SubmitForm ev -> do
         preventSubmit ev
         st <- H.get
         case validate st of
@@ -115,9 +114,8 @@ eval = case _ of
                         qwcURL <- createObjectURL fileBlob
                         revoke
                         H.modify_ (_ { objectURL = Just qwcURL })
-        pure next
-    Destroy next ->
-        revoke *> pure next
+    Destroy ->
+        revoke
   where
     -- | Re-validate the form & update the errors.
     revalidate :: forall n. MonadState State n => String -> n Unit
@@ -132,10 +130,11 @@ eval = case _ of
 
 
 -- | Render the New Company page.
-render :: State -> H.ComponentHTML Query
+render :: forall q. State -> HH.HTML q Action
 render st =
     maybe showForm showDownload st.objectURL
   where
+    showForm :: HH.HTML q Action
     showForm =
         HH.div_
             [ HH.p_
@@ -149,7 +148,7 @@ render st =
                     \company in QuickBooks, and add the file to the WebConnector to \
                     \initialize the data."
                 ]
-            , HH.form [ HE.onSubmit $ HE.input SubmitForm ]
+            , HH.form [ HE.onSubmit $ Just <<< SubmitForm ]
                 [ formErrors $ V.getFormErrors st.errors
                 , input "Company Name" HP.InputText st.name InputName (errors "name")
                     "For pages & forms"
@@ -160,6 +159,7 @@ render st =
                 , submitButton "Add Company"
                 ]
             ]
+    showDownload :: String -> HH.HTML q Action
     showDownload objectURL =
         HH.div_
             [ HH.p [ HP.class_ $ H.ClassName "success" ]
@@ -195,14 +195,14 @@ render st =
 
 
 -- | Show a download button using an `a` element with a `download` attribute.
-downloadButton :: forall f
+downloadButton :: forall q
     . String
    -- ^ Filename
    -> String
    -- ^ Button Text
    -> String
    -- ^ Object URL
-   -> H.ComponentHTML f
+   -> HH.HTML q Action
 downloadButton filename text objectURL =
     HH.a
         [ HP.href objectURL
