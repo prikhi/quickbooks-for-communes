@@ -121,6 +121,13 @@ let overrides =
       upstream.halogen-vdom // { version = "v6.1.0" }
   }
 
-let additions = {=}
+let additions =
+  { halogen-nselect =
+      mkPackage
+        [ "halogen"
+        ]
+        "https://github.com/nonbili/purescript-halogen-nselect.git"
+        "master"
+  }
 
 in  upstream // overrides // additions

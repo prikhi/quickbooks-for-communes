@@ -15,6 +15,7 @@ You can edit this file as you like.
     , "foreign"
     , "generics-rep"
     , "halogen"
+    , "halogen-nselect"
     , "js-date"
     , "now"
     , "ordered-collections"
