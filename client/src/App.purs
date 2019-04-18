@@ -26,6 +26,8 @@ import Effect.Class.Console as Console
 import Effect.Now (nowDateTime)
 import Foreign (unsafeToForeign)
 import Halogen as H
+import Halogen.HTML as HH
+import NSelect as Select
 import Routing.PushState (PushStateInterface)
 import Web.Event.Event as E
 import Web.File.Blob (Blob)
@@ -203,3 +205,17 @@ instance focusApp :: FocusElement AppM where
 instance focusHalogen :: FocusElement m
     => FocusElement (H.HalogenM s f g o m) where
     focusElement = H.lift <<< focusElement
+
+
+-- Halogen-NSelect
+
+class Monad m <= SelectComponent m where
+    selectComponent :: forall pa cs
+        . H.Component HH.HTML Select.Query (Select.Props pa cs m) (Select.Message pa) m
+
+instance nSelectApp :: SelectComponent AppM where
+    selectComponent = Select.component
+
+instance nSelectHalogen :: SelectComponent m
+    => SelectComponent (H.HalogenM s f g o m) where
+    selectComponent = selectComponent

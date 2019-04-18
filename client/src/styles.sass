@@ -296,6 +296,39 @@ form table
       width: 6.5em
 
 
+/* Account Select Dropdowns */
+div.account-select
+  position: relative
+  // Dropdown Container
+  > div
+    background-color: $input-bg
+    position: absolute
+    height: 0
+    width: 100%
+    overflow-y: scroll
+    z-index: 1
+    border-bottom-left-radius: #{$border-radius / 2}
+    border-bottom-right-radius: #{$border-radius / 2}
+    box-shadow: 0 3px 4px 0 rgba(black, 0.3)
+    &.opened
+      height: 10rem
+      transition: height 0.2s ease-in
+    // Dropdown Items
+    > div
+      text-align: left
+      font-size: 0.75rem
+      cursor: pointer
+      padding: 0.25rem 0.5rem
+      background-color: $input-bg
+      &.selected
+        color: $gray-white
+        background-color: $teal
+      &:first-of-type
+        margin-top: 0.33rem
+      &:last-of-type
+        margin-bottom: 0.33rem
+
+
 
 /** Site Navigation **/
 
