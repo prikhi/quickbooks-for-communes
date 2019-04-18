@@ -11,6 +11,7 @@ import Data.Argonaut.Encode ((:=), (~>), class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
 import Data.Either (Either)
 import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
 import Data.MediaType (MediaType(..))
 import Effect.Aff (Aff)
@@ -81,6 +82,9 @@ derive instance genericAccountData :: Generic AccountData _
 
 instance showAccountData :: Show AccountData where
     show = genericShow
+
+instance eqAccountData :: Eq AccountData where
+    eq = genericEq
 
 instance decodeAccountData :: DecodeJson AccountData where
     decodeJson json = do
