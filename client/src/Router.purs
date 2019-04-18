@@ -27,6 +27,7 @@ import App
     , class LogToConsole
     , class DateTime
     , class FocusElement
+    , class SelectComponent
     )
 import Server (class Server)
 
@@ -140,6 +141,7 @@ render :: forall m
    => LogToConsole m
    => DateTime m
    => FocusElement m
+   => SelectComponent m
    => State -> H.ComponentHTML Action ChildSlots m
 render { currentPage } =
     HH.div_
@@ -181,6 +183,7 @@ renderPage :: forall m
    => LogToConsole m
    => DateTime m
    => FocusElement m
+   => SelectComponent m
    => Route -> H.ComponentHTML Action ChildSlots m
 renderPage = case _ of
     Home ->
