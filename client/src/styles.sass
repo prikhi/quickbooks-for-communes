@@ -311,14 +311,16 @@ div.account-select
     border-bottom-right-radius: #{$border-radius / 2}
     box-shadow: 0 3px 4px 0 rgba(black, 0.3)
     &.opened
-      height: 10rem
+      height: 12rem
+      // Setting the transition here lets us scroll the dropdown open but snap
+      // it closed
       transition: height 0.2s ease-in
     // Dropdown Items
     > div
       text-align: left
-      font-size: 0.75rem
+      font-size: 0.8rem
       cursor: pointer
-      padding: 0.25rem 0.5rem
+      padding: 0.2rem 0.5rem
       background-color: $input-bg
       &.selected
         color: $gray-white
