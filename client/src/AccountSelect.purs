@@ -27,7 +27,7 @@ module AccountSelect
 import Prelude
 
 import Data.Array as Array
-import Data.Foldable (for_)
+import Data.Foldable (for_, traverse_)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (guard)
 import Data.String as String
@@ -144,15 +144,26 @@ evalAction = case _ of
                 H.raise $ Selected item
             void $ H.query _select unit Select.close
         Select.InputValueChanged value -> do
+            -- Set the new input value & filter the item list using the new
+            -- value.
             H.modify_ $ \state -> state
                 { value = value
                 , filteredItems = filterAccounts value state.items
                 }
             void $ H.query _select unit $ Select.highlight 0
-        Select.VisibilityChanged _ ->
-            pure unit
-        Select.Emit q ->
-            evalAction q
+        Select.VisibilityChanged open ->
+            -- Ensure the highlighted item is visible by re-setting it as the
+            -- highlighted item. This is necessary because we use height
+            -- transitions for the dropdown's open/close functionality which
+            -- breaks the ability of the Select component to automatically
+            -- scroll the highlighted element into view when the dropdown is
+            -- opened.
+            when open
+                $ H.query _select unit (H.request Select.getState) >>= traverse_ \st ->
+                    void $ H.query _select unit $ Select.highlight st.highlightedIndex
+        Select.Emit action ->
+            -- Recursively call our action handler using the raised action.
+            evalAction action
     HandleKeypress isOpen event -> do
         let isTabKey = KE.key event == "Tab"
             isEnterKey = KE.key event == "Enter"
