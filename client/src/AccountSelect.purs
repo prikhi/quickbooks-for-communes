@@ -244,5 +244,12 @@ renderSelect state st =
         let selectedAttr =
                 guard (index == st.highlightedIndex)
                     [ HP.class_ $ H.ClassName "selected" ]
-        in  HH.div (Select.setItemProps index selectedAttr)
-                [ HH.text account.name ]
+            description =
+                guard (account.description /= "")
+                    [ HH.div [ HP.class_ $ H.ClassName "account-description" ]
+                        [ HH.text account.description ]
+                    ]
+        in  HH.div (Select.setItemProps index selectedAttr) $
+                [ HH.div [ HP.class_ $ H.ClassName "account-name" ]
+                    [ HH.text account.name ]
+                ] <> description

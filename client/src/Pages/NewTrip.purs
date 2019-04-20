@@ -11,6 +11,7 @@ TODO:
     * Store Credit fieldsets
     * Form validation
     * Form submission
+    * Custom styling for checkboxes
     * Use custom date picker? https://github.com/slamdata/purescript-halogen-datepicker
 -}
 module Pages.NewTrip
