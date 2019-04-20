@@ -232,6 +232,7 @@ eval = case _ of
     RemoveStop index -> do
         deleteStop index
     AddStop -> do
+        -- TODO Focus the stop name field of the new stop
         H.modify_ $ \st -> st { stops = st.stops <> [ initialStop ] }
     StopInputName index str -> do
         updateStop index (_ { name = Just str })
