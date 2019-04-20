@@ -86,9 +86,12 @@ data Message
     -- you can move to the first input in the next row of the table.
 
 
+-- | The internal state of the component.
 type State =
     { selected :: Maybe AccountData
+    -- ^  Currently selected Account
     , value :: String
+    -- ^ Current value of the search input
     , items :: Array AccountData
     -- ^ Available items to choose from
     , filteredItems :: Array SelectItem
@@ -119,6 +122,7 @@ initialState items =
     }
 
 
+-- | Each component contains a single NSelect component.
 type ChildSlots =
     ( select :: Select.Slot Action Unit
     )
@@ -135,6 +139,7 @@ data Action
     | Receive (Array AccountData)
     -- ^ Handle receiving a new Array of Accounts as input from the parent.
 
+-- | Handle the internal actions of the component.
 evalAction :: forall m
     . PreventDefaultEnter m
    => Action
@@ -253,6 +258,7 @@ evalQuery = case _ of
         pure $ Just next
 
 
+
 -- | Render the Account Select by simply rendering the NSelect child component.
 render :: forall m
     . SelectComponent m => State -> H.ComponentHTML Action ChildSlots m
@@ -263,6 +269,8 @@ render state =
     }
     $ Just <<< HandleSelect
 
+-- | Render the NSelect component as a div containing an input and a dropdown
+-- | div.
 renderSelect :: forall m. State -> Select.State -> Select.HTML Action () m
 renderSelect state st =
     HH.div (Select.setRootProps [ HP.class_ $ H.ClassName "account-select" ])
@@ -270,6 +278,7 @@ renderSelect state st =
           , renderDropdown
           ]
   where
+    -- Render the text input, raising the HandleKeypress message on keypresses.
     renderInput :: forall m_. Boolean -> Select.HTML Action () m_
     renderInput isOpen =
         HH.input
