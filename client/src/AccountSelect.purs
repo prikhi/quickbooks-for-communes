@@ -11,9 +11,7 @@ row of the table.
 
 
 TODO:
-    * Fuzzy search (purescript-fuzzy package?)
-    * Highlight search matches
-    * Render the description & parent(or root) account or the account type?
+    * Render the parent(or root) account or the account type?
 
 -}
 module AccountSelect
@@ -27,11 +25,15 @@ module AccountSelect
 import Prelude
 
 import Data.Array as Array
+import Data.Either (Either(..))
 import Data.Foldable (for_, traverse_)
+import Data.Fuzzy (Fuzzy(..), Segments, match)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (guard)
-import Data.String as String
+import Data.Rational ((%))
 import Data.Symbol (SProxy(..))
+import Data.Tuple (Tuple(..))
+import Foreign.Object as Object
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
@@ -88,15 +90,32 @@ type State =
     { selected :: Maybe AccountData
     , value :: String
     , items :: Array AccountData
-    , filteredItems :: Array AccountData
+    -- ^ Available items to choose from
+    , filteredItems :: Array SelectItem
+    -- ^ Items currently filtered by the search string
     }
 
+-- | AccountData that has potentially passed through search matching. Built
+-- | from the State.items and used for rendering the dropdown items.
+type SelectItem =
+    { account :: AccountData
+    , match :: Maybe (Fuzzy AccountData)
+    }
+
+-- | Make an unmatched SelectItem from an Account.
+pureItem :: AccountData -> SelectItem
+pureItem account =
+    { account
+    , match: Nothing
+    }
+
+-- | An empty input with the given possible accounts.
 initialState :: Array AccountData -> State
 initialState items =
     { selected: Nothing
     , value: ""
     , items
-    , filteredItems: items
+    , filteredItems: map pureItem items
     }
 
 
@@ -130,7 +149,7 @@ evalAction = case _ of
             newValue = maybe "" (\(AccountData a) -> a.name) newSelected
         H.modify_
             (_ { items = accounts
-               , filteredItems = accounts
+               , filteredItems = map pureItem accounts
                , selected = newSelected
                , value = newValue
                })
@@ -139,9 +158,10 @@ evalAction = case _ of
             -- Set the new item & input value, inform the parent of the
             -- selection, & close the dropdown menu.
             st <- H.get
-            for_ (Array.index st.filteredItems index) \item@(AccountData a) -> do
-                H.modify_ $ _ { selected = Just item, value = a.name }
-                H.raise $ Selected item
+            for_ (Array.index st.filteredItems index) \item -> do
+                let a@(AccountData account) = item.account
+                H.modify_ $ _ { selected = Just a, value = account.name }
+                H.raise $ Selected a
             void $ H.query _select unit Select.close
         Select.InputValueChanged value -> do
             -- Set the new input value & filter the item list using the new
@@ -191,14 +211,37 @@ evalAction = case _ of
         st <- H.get
         when (isBackspace && st.selected /= Nothing) $ do
             H.modify_ \state -> state
-                { selected = Nothing, value = "", filteredItems = state.items }
+                { selected = Nothing
+                , value = ""
+                , filteredItems = map pureItem state.items
+                }
             void $ H.query _select unit Select.open
             H.raise Cleared
   where
-    filterAccounts :: String -> Array AccountData -> Array AccountData
+    -- Return only the Accounts that match the search string.
+    filterAccounts :: String -> Array AccountData -> Array SelectItem
     filterAccounts searchValue =
-        Array.filter \(AccountData a) ->
-            String.contains (String.Pattern searchValue) a.name
+        if searchValue == "" then
+            map pureItem
+        else
+            Array.mapMaybe (matchAccount searchValue)
+                >>> Array.sortWith (_.match)
+    -- Attempt to match an Account against some some string.
+    matchAccount :: String -> AccountData -> Maybe SelectItem
+    matchAccount searchValue i =
+        let toObject (AccountData a) = Object.fromFoldable
+                [ Tuple "name" a.name
+                , Tuple "description" a.description
+                ]
+            fuzzyMatch =
+                match true toObject searchValue i
+        in  if aboveThreshold fuzzyMatch
+            then Just { account: i, match: Just fuzzyMatch }
+            else Nothing
+    -- Allow matching only 11 out of every 12 characters
+    aboveThreshold :: forall a. Fuzzy a -> Boolean
+    aboveThreshold (Fuzzy match) =
+        match.ratio >= (11 % 12)
 
 
 -- | Handle requests from parent components.
@@ -233,23 +276,67 @@ renderSelect state st =
             $ Select.setInputProps'
                 { onKeyDown: HandleKeypress isOpen }
                 [ HP.value state.value ]
-    renderDropdown :: forall m_. Select.HTML Action () m_
+    -- Render the dropdown list of items
+    renderDropdown :: forall m_ a. Select.HTML a () m_
     renderDropdown =
         let visibleAttr =
                 guard st.isOpen [ HP.class_ $ H.ClassName "opened" ]
         in  HH.div (Select.setMenuProps visibleAttr)
                 $ Array.mapWithIndex renderItem state.filteredItems
-    renderItem :: forall m_. Int -> AccountData -> Select.HTML Action () m_
-    renderItem index (AccountData account) =
+    -- Render an item, highlighting any matches and the entire item if seleted
+    renderItem :: forall m_ a. Int -> SelectItem -> Select.HTML a () m_
+    renderItem index selectItem =
         let selectedAttr =
                 guard (index == st.highlightedIndex)
                     [ HP.class_ $ H.ClassName "selected" ]
-            description =
-                guard (account.description /= "")
-                    [ HH.div [ HP.class_ $ H.ClassName "account-description" ]
-                        [ HH.text account.description ]
-                    ]
         in  HH.div (Select.setItemProps index selectedAttr) $
-                [ HH.div [ HP.class_ $ H.ClassName "account-name" ]
-                    [ HH.text account.name ]
-                ] <> description
+                case selectItem.match of
+                    Just fuzzyMatch ->
+                        renderMatchingItem fuzzyMatch
+                    Nothing ->
+                        renderNormalItem selectItem.account
+    -- Render an item without match data
+    renderNormalItem :: forall m_ a. AccountData -> Array (Select.HTML a () m_)
+    renderNormalItem (AccountData account) =
+        let description =
+                guard (account.description /= "")
+                    $ descriptionWrapper [ HH.text account.description ]
+        in  [ nameWrapper [ HH.text account.name ] ] <> description
+    -- Render an item with Match data
+    renderMatchingItem :: forall m_ a. Fuzzy AccountData -> Array (Select.HTML a () m_)
+    renderMatchingItem (Fuzzy fuzzyMatch) =
+        let (AccountData account) =
+                fuzzyMatch.original
+            segments =
+                fuzzyMatch.segments
+            nameHTML =
+                renderSegments "name" account.name segments
+            descriptionHTML =
+                guard (account.description /= "")
+                    $ descriptionWrapper
+                    $ renderSegments "description" account.description segments
+        in  [ nameWrapper nameHTML ] <> descriptionHTML
+    -- Wrap the account HTML in a div
+    nameWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Select.HTML a () m_
+    nameWrapper =
+        HH.div [ HP.class_ $ H.ClassName "account-name" ]
+    -- Wrap the description HTML in a div, then an array
+    descriptionWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Array (Select.HTML a () m_)
+    descriptionWrapper =
+        Array.singleton <<< HH.div [ HP.class_ $ H.ClassName "account-description" ]
+    -- Render the segments, given a field name & default value
+    renderSegments :: forall m_ a. String -> String -> Object.Object Segments -> Array (Select.HTML a () m_)
+    renderSegments field default segments =
+        case Object.lookup field segments of
+            Nothing ->
+                [ HH.text default ]
+            Just segs ->
+                map renderSegment segs
+    -- Render a matching segment wrapped in a span & an unmatched one as text
+    renderSegment :: forall m_ a. Either String String -> Select.HTML a () m_
+    renderSegment = case _ of
+        Left str ->
+            HH.text str
+        Right matchStr ->
+            HH.span [ HP.class_ $ H.ClassName "match" ]
+                [ HH.text matchStr ]
