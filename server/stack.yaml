@@ -1,6 +1,6 @@
 ---
 
-resolver: lts-13.16
+resolver: lts-13.17
 
 packages:
     - .
