@@ -9,10 +9,6 @@ while the dropdown is closed. We use this along with the Focus query when
 rendering selects in tables, allowing parents to focus the select in the next
 row of the table.
 
-
-TODO:
-    * Render the parent(or root) account or the account type?
-
 -}
 module AccountSelect
     ( component
@@ -44,7 +40,7 @@ import App
     ( class SelectComponent, selectComponent
     , class PreventDefaultEnter, preventEnter
     )
-import Server (AccountData(..))
+import Server (AccountData(..), prettyAccountType)
 
 
 -- | An autocompleting input with a dropdown menu for selecting an Account.
@@ -237,6 +233,7 @@ evalAction = case _ of
         let toObject (AccountData a) = Object.fromFoldable
                 [ Tuple "name" a.name
                 , Tuple "description" a.description
+                , Tuple "type" $ prettyAccountType a.accountType
                 ]
             fuzzyMatch =
                 match true toObject searchValue i
@@ -306,11 +303,15 @@ renderSelect state st =
                         renderNormalItem selectItem.account
     -- Render an item without match data
     renderNormalItem :: forall m_ a. AccountData -> Array (Select.HTML a () m_)
-    renderNormalItem (AccountData account) =
+    renderNormalItem a@(AccountData account) =
         let description =
-                guard (account.description /= "")
-                    $ descriptionWrapper [ HH.text account.description ]
-        in  [ nameWrapper [ HH.text account.name ] ] <> description
+                descriptionWrapper
+                    [ pure $ typeWrapper
+                        [ HH.text $ prettyAccountType account.accountType ]
+                    , optionalDescription a
+                        [ HH.text account.description ]
+                    ]
+        in  [ nameWrapper [ HH.text account.name ], description ]
     -- Render an item with Match data
     renderMatchingItem :: forall m_ a. Fuzzy AccountData -> Array (Select.HTML a () m_)
     renderMatchingItem (Fuzzy fuzzyMatch) =
@@ -321,20 +322,38 @@ renderSelect state st =
             nameHTML =
                 renderSegments "name" account.name segments
             descriptionHTML =
-                guard (account.description /= "")
-                    $ descriptionWrapper
-                    $ renderSegments "description" account.description segments
-        in  [ nameWrapper nameHTML ] <> descriptionHTML
+                descriptionWrapper
+                    [ pure typeHTML
+                    , optionalDescription fuzzyMatch.original
+                        $ renderSegments "description" account.description segments
+                    ]
+            typeHTML =
+                typeWrapper
+                    $ renderSegments "type" (prettyAccountType account.accountType)
+                        segments
+        in  [ nameWrapper nameHTML, descriptionHTML ]
     -- Wrap the account HTML in a div
     nameWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Select.HTML a () m_
     nameWrapper =
         HH.div [ HP.class_ $ H.ClassName "account-name" ]
     -- Wrap the description HTML in a div, then an array
-    descriptionWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Array (Select.HTML a () m_)
+    descriptionWrapper :: forall m_ a
+        . Array (Array (Select.HTML a () m_)) -> Select.HTML a () m_
     descriptionWrapper =
-        Array.singleton <<< HH.div [ HP.class_ $ H.ClassName "account-description" ]
+       Array.concat >>>  HH.div [ HP.class_ $ H.ClassName "account-description" ]
+    -- Wrap the account type HTML in a span for styling
+    typeWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Select.HTML a () m_
+    typeWrapper = HH.span [ HP.class_ $ H.ClassName "account-type" ]
+    -- Show the description if non-empty, prefixed with a `: ` separator
+    -- between the account type & description
+    optionalDescription :: forall m_ a
+        . AccountData -> Array(Select.HTML a () m_) -> Array (Select.HTML a () m_)
+    optionalDescription (AccountData account) descriptionHTML =
+        guard (account.description /= "")
+            $ typeWrapper [ HH.text ": " ] `Array.cons` descriptionHTML
     -- Render the segments, given a field name & default value
-    renderSegments :: forall m_ a. String -> String -> Object.Object Segments -> Array (Select.HTML a () m_)
+    renderSegments :: forall m_ a
+        . String -> String -> Object.Object Segments -> Array (Select.HTML a () m_)
     renderSegments field default segments =
         case Object.lookup field segments of
             Nothing ->

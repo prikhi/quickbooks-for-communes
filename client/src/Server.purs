@@ -9,7 +9,7 @@ import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode ((.:), class DecodeJson, decodeJson)
 import Data.Argonaut.Encode ((:=), (~>), class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
-import Data.Either (Either)
+import Data.Either (Either(Left))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
@@ -77,6 +77,7 @@ data AccountData
         { id :: Int
         , name :: String
         , description :: String
+        , accountType :: AccountType
         }
 derive instance genericAccountData :: Generic AccountData _
 
@@ -92,7 +93,84 @@ instance decodeAccountData :: DecodeJson AccountData where
         id <- o .: "adAccountId"
         name <- o .: "adAccountName"
         description <- o .: "adAccountDescription"
-        pure $ AccountData { id, name, description }
+        accountType <- o .: "adAccountType"
+        pure $ AccountData { id, name, description, accountType }
+
+data AccountType
+    = AccountsPayable
+    | AccountsReceivable
+    | Bank
+    | CostOfGoodsSold
+    | CreditCard
+    | Equity
+    | Expense
+    | FixedAsset
+    | Income
+    | LongTermLiability
+    | NonPosting
+    | OtherAsset
+    | OtherCurrentAsset
+    | OtherCurrentLiability
+    | OtherExpense
+    | OtherIncome
+
+derive instance genericAccountType :: Generic AccountType _
+
+instance showAccountType :: Show AccountType where
+    show = genericShow
+
+instance eqAccountType :: Eq AccountType where
+    eq = genericEq
+
+instance decodeAccountType :: DecodeJson AccountType where
+    decodeJson json = do
+        decodeJson json >>= case _ of
+            "AccountsPayable" -> pure AccountsPayable
+            "AccountsReceivable" -> pure AccountsReceivable
+            "Bank" -> pure Bank
+            "CostOfGoodsSold" -> pure CostOfGoodsSold
+            "CreditCard" -> pure CreditCard
+            "Equity" -> pure Equity
+            "Expense" -> pure Expense
+            "FixedAsset" -> pure FixedAsset
+            "Income" -> pure Income
+            "LongTermLiability" -> pure LongTermLiability
+            "NonPosting" -> pure NonPosting
+            "OtherAsset" -> pure OtherAsset
+            "OtherCurrentAsset" -> pure OtherCurrentAsset
+            "OtherCurrentLiability" -> pure OtherCurrentLiability
+            "OtherExpense" -> pure OtherExpense
+            "OtherIncome" -> pure OtherIncome
+            s -> Left $ "Unexpected AccountType String: " <> s
+
+prettyAccountType :: AccountType -> String
+prettyAccountType = case _ of
+    AccountsPayable -> liability
+    AccountsReceivable -> asset
+    Bank -> asset
+    CostOfGoodsSold -> costOfGoods
+    CreditCard -> liability
+    Equity -> equity
+    Expense -> expense
+    FixedAsset -> asset
+    Income -> income
+    LongTermLiability -> liability
+    NonPosting -> nonPosting
+    OtherAsset -> asset
+    OtherCurrentAsset -> asset
+    OtherCurrentLiability -> liability
+    OtherExpense -> expense
+    OtherIncome -> income
+  where
+    asset = "Asset"
+    costOfGoods = "Cost of Goods Sold"
+    equity = "Equity"
+    expense = "Expense"
+    income = "Income"
+    liability = "Liability"
+    nonPosting = "Non Posting"
+
+
 
 
 decodeResponse :: forall a
