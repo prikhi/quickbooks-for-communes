@@ -83,6 +83,7 @@ accounts companyId = runDB $ map convert <$> selectList
         { adAccountId          = aId
         , adAccountName        = accountName a
         , adAccountDescription = accountDescription a
+        , adAccountType        = accountType a
         }
 
 

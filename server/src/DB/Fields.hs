@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {- | Defines database field types & their Persistent instances. -}
@@ -15,6 +16,9 @@ module DB.Fields
     )
 where
 
+import           Data.Aeson                     ( ToJSON(..)
+                                                , Value(String)
+                                                )
 import           Data.UUID                      ( UUID )
 import           Data.Text                      ( Text
                                                 , pack
@@ -22,6 +26,7 @@ import           Data.Text                      ( Text
                                                 )
 import           Database.Persist.Sql
 import           Database.Persist.TH            ( derivePersistField )
+import           GHC.Generics                   ( Generic )
 import           QuickBooks.QBXML               ( AccountType(..) )
 
 
@@ -62,6 +67,7 @@ $(derivePersistField "SessionError")
 -- | A newtype wrapper for AccountTypes so we can add Persistent instances.
 newtype AccountTypeField
     = AccountTypeField { unAccountTypeField :: AccountType }
+    deriving (Generic)
 
 -- | Re-use the 'AccountType' 'Show' instance.
 instance Show AccountTypeField where
@@ -72,6 +78,9 @@ instance Read AccountTypeField where
     readsPrec precedence str =
         (\(accType, rest) -> (AccountTypeField accType, rest))
             <$> readsPrec precedence str
+
+instance ToJSON AccountTypeField where
+    toJSON = String . pack . show
 
 $(derivePersistField "AccountTypeField")
 

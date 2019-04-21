@@ -25,6 +25,7 @@ import           Data.Aeson                     ( ToJSON
                                                 )
 import           Data.Proxy                     ( Proxy(..) )
 import           Data.Text                      ( Text )
+import           DB.Fields                      ( AccountTypeField )
 import           DB.Schema                      ( CompanyId
                                                 , AccountId
                                                 )
@@ -83,6 +84,7 @@ data AccountData
         { adAccountId :: AccountId
         , adAccountName :: Text
         , adAccountDescription :: Text
+        , adAccountType :: AccountTypeField
         } deriving (Show, Read, Generic)
 
 instance ToJSON AccountData
