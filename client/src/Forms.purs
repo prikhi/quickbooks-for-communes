@@ -142,32 +142,12 @@ input :: forall p i
    -- ^ Help text
    -> HH.HTML p i
 input label type_ value action errors helpText =
-    HH.label errorClass
-        [ HH.div_ $
-            [ HH.text label ]
-            <> helpElement
-        , HH.input $
+    labelWrapper label errors helpText $
+        HH.input $
             [ HP.type_ type_
             , HP.required true
             , HE.onValueInput $ Just <<< action
             ] <> optionalValue value
-        , if hasError
-              then HH.ul_ $ map (\e -> HH.li_ [HH.text e]) errors
-              else HH.text ""
-        ]
-  where
-    helpElement :: forall p_ i_. Array (HH.HTML p_ i_)
-    helpElement =
-        if helpText /= "" then [ HH.p_ [ HH.text helpText ] ] else []
-    hasError :: Boolean
-    hasError =
-        not $ Array.null errors
-
-    errorClass :: forall r i_. Array (HP.IProp ( class :: String | r ) i_)
-    errorClass =
-        if hasError
-            then [HP.class_ $ H.ClassName "error"]
-            else []
 
 -- | Make a `value` attribute for an input element, if a string is present.
 optionalValue :: forall r i_. Maybe String -> Array (HP.IProp ( value :: String | r ) i_)
