@@ -171,6 +171,7 @@ evalAction = case _ of
                 { value = value
                 , filteredItems = filterAccounts value state.items
                 }
+            void $ H.query _select unit $ Select.highlight 0
             void $ H.query _select unit Select.open
         Select.VisibilityChanged open ->
             -- Ensure the highlighted item is visible by re-setting it as the
