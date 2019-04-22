@@ -234,17 +234,16 @@ evalAction = case _ of
         let toObject (AccountData a) = Object.fromFoldable
                 [ Tuple "name" a.name
                 , Tuple "description" a.description
-                , Tuple "type" $ prettyAccountType a.accountType
                 ]
             fuzzyMatch =
                 match true toObject searchValue i
         in  if aboveThreshold fuzzyMatch
             then Just { account: i, match: Just fuzzyMatch }
             else Nothing
-    -- Allow matching only 11 out of every 12 characters
+    -- Are there any character matches?
     aboveThreshold :: forall a. Fuzzy a -> Boolean
     aboveThreshold (Fuzzy match) =
-        match.ratio >= (11 % 12)
+        match.ratio > 0 % 1
 
 
 -- | Handle requests from parent components.
@@ -307,8 +306,7 @@ renderSelect state st =
     renderNormalItem a@(AccountData account) =
         let description =
                 descriptionWrapper
-                    [ pure $ typeWrapper
-                        [ HH.text $ prettyAccountType account.accountType ]
+                    [ pure $ typeHTML a
                     , optionalDescription a
                         [ HH.text account.description ]
                     ]
@@ -324,14 +322,10 @@ renderSelect state st =
                 renderSegments "name" account.name segments
             descriptionHTML =
                 descriptionWrapper
-                    [ pure typeHTML
+                    [ pure $ typeHTML fuzzyMatch.original
                     , optionalDescription fuzzyMatch.original
                         $ renderSegments "description" account.description segments
                     ]
-            typeHTML =
-                typeWrapper
-                    $ renderSegments "type" (prettyAccountType account.accountType)
-                        segments
         in  [ nameWrapper nameHTML, descriptionHTML ]
     -- Wrap the account HTML in a div
     nameWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Select.HTML a () m_
@@ -344,7 +338,13 @@ renderSelect state st =
        Array.concat >>>  HH.div [ HP.class_ $ H.ClassName "account-description" ]
     -- Wrap the account type HTML in a span for styling
     typeWrapper :: forall m_ a. Array (Select.HTML a () m_) -> Select.HTML a () m_
-    typeWrapper = HH.span [ HP.class_ $ H.ClassName "account-type" ]
+    typeWrapper =
+        HH.span [ HP.class_ $ H.ClassName "account-type" ]
+    -- Render the prettified Account Type
+    typeHTML :: forall m_ a. AccountData -> Select.HTML a () m_
+    typeHTML (AccountData account) =
+        typeWrapper
+            [ HH.text $ prettyAccountType account.accountType ]
     -- Show the description if non-empty, prefixed with a `: ` separator
     -- between the account type & description
     optionalDescription :: forall m_ a
