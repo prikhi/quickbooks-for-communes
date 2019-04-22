@@ -29,13 +29,12 @@ import Data.DateTime (date)
 import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
-import Data.Foldable (fold)
+import Data.Foldable (fold, traverse_)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (sequence, for_)
 import Data.Tuple (Tuple(..))
-import DOM.HTML.Indexed (HTMLinput)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -51,7 +50,7 @@ import App
     , class PreventDefaultClick, preventClick
     , class LogToConsole, logShow
     , class DateTime, parseDate, now
-    , class FocusElement
+    , class FocusElement, focusElement
     , class SelectComponent
     )
 import Forms
@@ -232,8 +231,10 @@ eval = case _ of
     RemoveStop index -> do
         deleteStop index
     AddStop -> do
-        -- TODO Focus the stop name field of the new stop
         H.modify_ $ \st -> st { stops = st.stops <> [ initialStop ] }
+        (_.stops >>> Array.length >>> (\x -> x - 1)) <$> H.get
+            >>= stopNameFieldRef >>> H.getHTMLElementRef
+            >>= traverse_ focusElement
     StopInputName index str -> do
         updateStop index (_ { name = Just str })
     StopInputTotal index str -> do
@@ -399,8 +400,7 @@ eval = case _ of
     -- Focus the transaction row after the given one, adding a new row if one
     -- doesn't exist.
     focusNextRow :: forall f o_ m_
-        . FocusElement m_
-       => Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
+        . Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
     focusNextRow stopIndex transactionIndex = do
         st <- H.get
         for_ (Array.index st.stops stopIndex) \stop -> do
@@ -410,8 +410,7 @@ eval = case _ of
             focusStopTransaction stopIndex (transactionIndex + 1)
     -- Change focus to the first input of a TripStop's Transaction.
     focusStopTransaction :: forall s f o_ m_
-        . FocusElement m_
-       => Int -> Int -> H.HalogenM s f ChildSlots o_ m_ Unit
+        . Int -> Int -> H.HalogenM s f ChildSlots o_ m_ Unit
     focusStopTransaction stopIndex transIndex =
         void $ H.query _accountSelect (Tuple stopIndex transIndex)
             $ AccountSelect.Focus unit
@@ -458,8 +457,7 @@ renderTripStop :: forall m
 renderTripStop accounts formErrors stopIndex tripStop =
     HH.fieldset_
         [ HH.legend_ [ HH.text stopLabel ]
-        , input "Stop Name" HP.InputText tripStop.name (StopInputName stopIndex) (errors "name")
-            "The name of the store."
+        , nameInput
         , dollarInput "Total Spent" tripStop.stopTotal (StopInputTotal stopIndex) (errors "total")
             "The amount spent at the store."
         , renderTransactionTable accounts formErrors stopIndex tripStop.stopTotal tripStop.transactions
@@ -470,6 +468,7 @@ renderTripStop accounts formErrors stopIndex tripStop =
     errors field =
         V.getFieldErrors ("trip-stop-" <> show stopIndex <> "-" <> field)
             formErrors
+    stopLabel :: String
     stopLabel = case tripStop.name of
         Nothing ->
             "Trip Stop"
@@ -477,6 +476,20 @@ renderTripStop accounts formErrors stopIndex tripStop =
             "Trip Stop"
         Just str ->
             "Trip Stop: " <> str
+    nameInput :: forall m_ g. H.ComponentHTML Action g m_
+    nameInput =
+        labelWrapper "Stop Name" (errors "name") "The name of the store." $
+            HH.input $
+                [ HP.type_ HP.InputText
+                , HP.required true
+                , HE.onValueInput $ Just <<< StopInputName stopIndex
+                , HP.ref $ stopNameFieldRef stopIndex
+                ] <> optionalValue tripStop.name
+
+stopNameFieldRef :: Int -> H.RefLabel
+stopNameFieldRef stopIndex =
+    H.RefLabel
+        $ "__newtrip_tripstop_name_" <> show stopIndex
 
 renderTransactionTable :: forall m
     . SelectComponent m
@@ -566,7 +579,6 @@ renderTransaction accounts formErrors stopIndex transactionIndex transaction =
             (mkAction TransactionInputMemo)
             (mkAction TransactionInputEnter)
             false
-            [ HP.ref $ transactionDetailRef stopIndex transactionIndex ]
           ]
         , [ tableAmountInput "item-price" transaction.amount
                 (mkAction TransactionInputAmount)
@@ -604,11 +616,6 @@ renderTransaction accounts formErrors stopIndex transactionIndex transaction =
     centeredCell =
         HH.td [ HP.class_ $ H.ClassName "align-center" ]
 
-transactionDetailRef :: Int -> Int -> H.RefLabel
-transactionDetailRef stopI transI =
-    H.RefLabel
-        $ "__newtrip_transaction_detail_" <> show stopI <> "_" <> show transI
-
 
 -- Inputs
 
@@ -618,15 +625,14 @@ tableInput :: forall p i
    -> (String -> i)
    -> (KE.KeyboardEvent -> i)
    -> Boolean
-   -> Array (HP.IProp HTMLinput i)
    -> HH.HTML p i
-tableInput name value action enterKeyAction hasError attrs =
+tableInput name value action enterKeyAction hasError =
     HH.input $
         [ HP.type_ HP.InputText
         , HP.name name
         , HE.onValueInput $ Just <<< action
         , HE.onKeyDown $ Just <<< enterKeyAction
-        ] <> optionalValue value <> errorClass hasError <> attrs
+        ] <> optionalValue value <> errorClass hasError
 
 tableAmountInput :: forall p i
     . String
