@@ -220,24 +220,24 @@ eval = case _ of
     InputDate str -> do
         autofillTripNumber str
         H.modify_ (_ { date = Just str })
-    InputName str -> do
+    InputName str ->
         H.modify_ (_ { name = Just str })
-    InputNumber str -> do
+    InputNumber str ->
         H.modify_ (_ { tripNumber = Just str })
-    InputAdvance str -> do
+    InputAdvance str ->
         H.modify_ (_ { cashAdvance = Just str })
-    InputReturned str -> do
+    InputReturned str ->
         H.modify_ (_ { cashReturned = Just str })
-    RemoveStop index -> do
+    RemoveStop index ->
         deleteStop index
     AddStop -> do
         H.modify_ $ \st -> st { stops = st.stops <> [ initialStop ] }
         (_.stops >>> Array.length >>> (\x -> x - 1)) <$> H.get
             >>= stopNameFieldRef >>> H.getHTMLElementRef
             >>= traverse_ focusElement
-    StopInputName index str -> do
+    StopInputName index str ->
         updateStop index (_ { name = Just str })
-    StopInputTotal index str -> do
+    StopInputTotal index str ->
         updateStop index (_ { stopTotal = Just str })
     StopAddRows index ev -> do
         addRowsToStop index 3
@@ -249,7 +249,7 @@ eval = case _ of
             updateTransaction stopIndex transIndex (_ { account = Nothing })
         AccountSelect.EnterKeyDownWhileClosed event ->
             preventEnter event *> focusNextRow stopIndex transIndex
-    TransactionInputMemo stopIndex transIndex str -> do
+    TransactionInputMemo stopIndex transIndex str ->
         updateTransaction stopIndex transIndex (_ { memo = Just str })
     TransactionInputAmount stopIndex transIndex str -> do
         updateTransaction stopIndex transIndex (_ { amount = Just str })
@@ -260,7 +260,7 @@ eval = case _ of
     TransactionInputTotal stopIndex transIndex str -> do
         updateTransaction stopIndex transIndex (_ { total = Just str })
         clearAmountAndTax stopIndex transIndex
-    TransactionCheckReturn stopIndex transIndex val -> do
+    TransactionCheckReturn stopIndex transIndex val ->
         updateTransaction stopIndex transIndex (_ { isReturn = val })
     TransactionClickRemove stopIndex transIndex ev -> do
         deleteTransaction stopIndex transIndex
@@ -289,7 +289,7 @@ eval = case _ of
         . MonadState State m_
        => Server m_
        => Int -> m_ Unit
-    fetchAccounts companyId = do
+    fetchAccounts companyId =
         accountsRequest companyId >>= case _ of
             Right accs ->
                 H.modify_ (_ { accounts = accs })
