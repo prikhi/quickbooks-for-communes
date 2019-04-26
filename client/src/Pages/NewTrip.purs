@@ -30,6 +30,8 @@ import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
 import Data.Foldable (fold, traverse_)
+import Data.Generic.Rep (class Generic)
+import Data.Generic.Rep.Show (genericShow)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
@@ -96,6 +98,7 @@ type State =
     , cashAdvance :: Maybe String
     , cashReturned :: Maybe String
     , stops :: Array TripStop
+    , stopCounter :: StopCount
     , errors :: V.FormErrors
     }
 
@@ -109,7 +112,8 @@ initial =
     , tripNumber: Nothing
     , cashAdvance: Nothing
     , cashReturned: Nothing
-    , stops: [ initialStop ]
+    , stops: [ initialStop $ StopCount 0 ]
+    , stopCounter: StopCount 1
     , errors: V.empty
     }
 
@@ -117,13 +121,17 @@ type TripStop =
     { name :: Maybe String
     , stopTotal :: Maybe String
     , transactions :: Array Transaction
+    , stopCount :: StopCount
+    , transactionCounter :: TransactionCount
     }
 
-initialStop :: TripStop
-initialStop =
+initialStop :: StopCount -> TripStop
+initialStop stopCount =
     { name: Nothing
     , stopTotal: Nothing
-    , transactions: Array.replicate 3 initialTransaction
+    , transactions: map (TransactionCount >>> initialTransaction) $ Array.range 0 2
+    , stopCount
+    , transactionCounter: TransactionCount 3
     }
 
 type Transaction =
@@ -133,23 +141,64 @@ type Transaction =
     , tax :: Maybe String
     , total :: Maybe String
     , isReturn :: Boolean
+    , transactionCount :: TransactionCount
     }
 
-initialTransaction :: Transaction
-initialTransaction =
+initialTransaction :: TransactionCount -> Transaction
+initialTransaction transactionCount =
     { account: Nothing
     , memo: Nothing
     , amount: Nothing
     , tax: Just "5.3"
     , total: Nothing
     , isReturn: false
+    , transactionCount
     }
 
--- TODO: These Ints should not be based on indexes or deleting the first or
--- middle rows does nothing! Use an increasing counter in the State & TripStop
--- types, pull value & bump it when adding new rows.
+-- | An increasing counter for the form's TripStops. Provides a unique index
+-- | for the AccountSelect component without relying on the Array position.
+data StopCount
+    = StopCount Int
+derive instance stopCountGeneric :: Generic StopCount _
+derive instance stopCountEq :: Eq StopCount
+derive instance stopCountOrd :: Ord StopCount
+instance stopCountShow :: Show StopCount where
+    show = genericShow
+
+-- | Get the next StopCount & increment the State's stopCounter.
+nextStopCount :: forall m. MonadState State m => m StopCount
+nextStopCount = do
+    nextCounter <- H.gets (_.stopCounter)
+    H.modify_ \st -> st
+        { stopCounter = (\(StopCount c) -> StopCount $ c + 1) st.stopCounter
+        }
+    pure nextCounter
+
+-- | An increasing counter for a TripStop's Transactions. Provides a unique
+-- | index for the AccountSelect component without relying on the Array
+-- | position.
+data TransactionCount
+    = TransactionCount Int
+derive instance transCountGeneric :: Generic TransactionCount _
+derive instance transCountEq :: Eq TransactionCount
+derive instance transCountOrd :: Ord TransactionCount
+instance transCountShow :: Show TransactionCount where
+    show = genericShow
+
+-- | Append a new Transaction & increase the stop's transactionCounter.
+addTransaction :: TripStop -> TripStop
+addTransaction stop = stop
+    { transactions =
+        stop.transactions <> [ initialTransaction stop.transactionCounter ]
+    , transactionCounter =
+        (\(TransactionCount c) -> TransactionCount $ c + 1) stop.transactionCounter
+    }
+
+-- | Slots for each Transaction's AccountSelect component. These use the
+-- | StopCount & TransactionCount types instead of indexes to provide unique
+-- | slots to each Transaction, even when Transaction rows have been removed.
 type ChildSlots =
-    ( accountSelect :: AccountSelect.Slot (Tuple Int Int)
+    ( accountSelect :: AccountSelect.Slot (Tuple StopCount TransactionCount)
     )
 
 _accountSelect = SProxy :: SProxy "accountSelect"
@@ -231,7 +280,10 @@ eval = case _ of
     RemoveStop index ->
         deleteStop index
     AddStop -> do
-        H.modify_ $ \st -> st { stops = st.stops <> [ initialStop ] }
+        stopCount <- nextStopCount
+        H.modify_ $ \st -> st
+            { stops = st.stops <> [ initialStop stopCount ]
+            }
         (_.stops >>> Array.length >>> (\x -> x - 1)) <$> H.get
             >>= stopNameFieldRef >>> H.getHTMLElementRef
             >>= traverse_ focusElement
@@ -352,10 +404,15 @@ eval = case _ of
     -- Add additional transactions to a TripStop.
     addRowsToStop :: forall m_. MonadState State m_ => Int -> Int -> m_ Unit
     addRowsToStop index count =
-        updateStop index $ \stop -> stop {
-            transactions =
-                stop.transactions <> Array.replicate count initialTransaction
-            }
+        let replicateM counter action =
+                if counter > 0
+                    then action *> replicateM (counter - 1) action
+                    else pure unit
+        in  replicateM count $ addRowToStop index
+    -- Add a single transaction to a TripStop, incresing it's transactionCounter.
+    addRowToStop :: forall m_. MonadState State m_ => Int -> m_ Unit
+    addRowToStop index =
+        updateStop index addTransaction
     -- Update the Transaction for a TripStop at the given indexes.
     updateTransaction :: forall m_
         . MonadState State m_
@@ -409,11 +466,21 @@ eval = case _ of
                 $ addRowsToStop stopIndex 1
             focusStopTransaction stopIndex (transactionIndex + 1)
     -- Change focus to the first input of a TripStop's Transaction.
-    focusStopTransaction :: forall s f o_ m_
-        . Int -> Int -> H.HalogenM s f ChildSlots o_ m_ Unit
-    focusStopTransaction stopIndex transIndex =
-        void $ H.query _accountSelect (Tuple stopIndex transIndex)
-            $ AccountSelect.Focus unit
+    focusStopTransaction :: forall f o_ m_
+        . Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
+    focusStopTransaction stopIndex transIndex = do
+        stops <- H.gets (_.stops)
+        case Array.index stops stopIndex of
+            Just stop ->
+                case Array.index stop.transactions transIndex of
+                    Just transaction -> void $
+                        H.query _accountSelect
+                            (Tuple stop.stopCount transaction.transactionCount)
+                            $ AccountSelect.Focus unit
+                    Nothing ->
+                        pure unit
+            Nothing ->
+                pure unit
 
 
 -- | Render the Add a Trip form.
@@ -460,7 +527,13 @@ renderTripStop accounts formErrors stopIndex tripStop =
         , nameInput
         , dollarInput "Total Spent" tripStop.stopTotal (StopInputTotal stopIndex) (errors "total")
             "The amount spent at the store."
-        , renderTransactionTable accounts formErrors stopIndex tripStop.stopTotal tripStop.transactions
+        , renderTransactionTable
+            accounts
+            formErrors
+            tripStop.stopCount
+            stopIndex
+            tripStop.stopTotal
+            tripStop.transactions
         , button "Remove Stop" HP.ButtonButton (H.ClassName "danger") (RemoveStop stopIndex)
         ]
   where
@@ -496,11 +569,12 @@ renderTransactionTable :: forall m
    => PreventDefaultEnter m
    => Array AccountData
    -> V.FormErrors
+   -> StopCount
    -> Int
    -> Maybe String
    -> Array Transaction
    -> H.ComponentHTML Action ChildSlots m
-renderTransactionTable accounts formErrors stopIndex stopTotal transactions =
+renderTransactionTable accounts formErrors stopCount stopIndex stopTotal transactions =
   let
     transactionTotal =
         Array.foldl sumTotals (Decimal.fromInt 0) transactions
@@ -519,7 +593,7 @@ renderTransactionTable accounts formErrors stopIndex stopTotal transactions =
             , HH.th_ []
             ]
         , HH.tbody_
-            $ Array.mapWithIndex (renderTransaction accounts formErrors stopIndex)
+            $ Array.mapWithIndex (renderTransaction accounts formErrors stopCount stopIndex)
                 transactions
         , HH.tfoot_
             [ HH.tr_ [ addRowsCell ]
@@ -565,13 +639,14 @@ renderTransaction :: forall m
    => PreventDefaultEnter m
    => Array AccountData
    -> V.FormErrors
+   -> StopCount
    -> Int
    -> Int
    -> Transaction
    -> H.ComponentHTML Action ChildSlots m
-renderTransaction accounts formErrors stopIndex transactionIndex transaction =
+renderTransaction accounts formErrors stopCount stopIndex transactionIndex transaction =
     HH.tr_ $ map centeredCell
-        [ [ HH.slot _accountSelect (Tuple stopIndex transactionIndex)
+        [ [ HH.slot _accountSelect (Tuple stopCount transaction.transactionCount)
             AccountSelect.component accounts
             $ Just <<< TransactionHandleAccount stopIndex transactionIndex
           ]
