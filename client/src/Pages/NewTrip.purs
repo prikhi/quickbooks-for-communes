@@ -732,12 +732,15 @@ tableCheckbox :: forall p i
    -> (KE.KeyboardEvent -> i)
    -> HH.HTML p i
 tableCheckbox name value action enterKeyAction =
-    HH.input $
-        [ HP.type_ HP.InputCheckbox
-        , HP.name name
-        , HE.onChecked $ Just <<< action
-        , onEnterDown enterKeyAction
-        , HP.checked value
+    HH.label [ HP.class_ $ H.ClassName "checkbox-wrapper" ]
+        [ HH.input
+            [ HP.type_ HP.InputCheckbox
+            , HP.name name
+            , HE.onChecked $ Just <<< action
+            , onEnterDown enterKeyAction
+            , HP.checked value
+            ]
+        , HH.span [ HP.class_ $ H.ClassName "checkbox-custom" ] []
         ]
 
 -- | Trigger the action when the Enter key is pressed down.
