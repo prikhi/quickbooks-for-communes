@@ -22,7 +22,7 @@ import Prelude
 
 import Data.Array as Array
 import Data.Either (Either(..))
-import Data.Foldable (for_, traverse_)
+import Data.Foldable (for_)
 import Data.Fuzzy (Fuzzy(..), Segments, match)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Monoid (guard)
@@ -173,16 +173,8 @@ evalAction = case _ of
                 }
             void $ H.query _select unit $ Select.highlight 0
             void $ H.query _select unit Select.open
-        Select.VisibilityChanged open ->
-            -- Ensure the highlighted item is visible by re-setting it as the
-            -- highlighted item. This is necessary because we use height
-            -- transitions for the dropdown's open/close functionality which
-            -- breaks the ability of the Select component to automatically
-            -- scroll the highlighted element into view when the dropdown is
-            -- opened.
-            when open
-                $ H.query _select unit (H.request Select.getState) >>= traverse_ \st ->
-                    void $ H.query _select unit $ Select.highlight st.highlightedIndex
+        Select.VisibilityChanged _ ->
+            pure unit
         Select.Emit action ->
             -- Recursively call our action handler using the raised action.
             evalAction action

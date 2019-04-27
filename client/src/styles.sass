@@ -304,18 +304,22 @@ div.account-select
   > div
     background-color: $input-bg
     position: absolute
-    height: 0
+    height: 12rem
     width: 100%
     overflow-y: scroll
-    z-index: 1
     border-bottom-left-radius: #{$border-radius / 2}
     border-bottom-right-radius: #{$border-radius / 2}
     box-shadow: 0 3px 4px 0 rgba(black, 0.3)
+    visibility: hidden
+    z-index: -1
+    opacity: 0
     &.opened
-      height: 12rem
-      // Setting the transition here lets us scroll the dropdown open but snap
+      visibility: visible
+      z-index: 1
+      opacity: 1
+      // Setting the transition here lets us fade the dropdown open and snap
       // it closed
-      transition: height 0.2s ease-in
+      transition: opacity 0.2s ease-in
     // Dropdown Items
     > div
       text-align: left
