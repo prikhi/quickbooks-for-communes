@@ -530,10 +530,8 @@ renderTripStop accounts formErrors stopIndex tripStop =
         , renderTransactionTable
             accounts
             formErrors
-            tripStop.stopCount
             stopIndex
-            tripStop.stopTotal
-            tripStop.transactions
+            tripStop
         , button "Remove Stop" HP.ButtonButton (H.ClassName "danger") (RemoveStop stopIndex)
         ]
   where
@@ -569,12 +567,10 @@ renderTransactionTable :: forall m
    => PreventDefaultEnter m
    => Array AccountData
    -> V.FormErrors
-   -> StopCount
    -> Int
-   -> Maybe String
-   -> Array Transaction
+   -> TripStop
    -> H.ComponentHTML Action ChildSlots m
-renderTransactionTable accounts formErrors stopCount stopIndex stopTotal transactions =
+renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, transactions } =
   let
     transactionTotal =
         Array.foldl sumTotals (Decimal.fromInt 0) transactions
