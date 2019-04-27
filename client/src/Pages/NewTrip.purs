@@ -4,7 +4,7 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
-    * Transaction tables
+    * Entry out of balance counter
     * Store Credit fieldsets
     * Form validation
     * Form submission
@@ -34,7 +34,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (sequence, for_)
 import Data.Tuple (Tuple(..))
-import DOM.HTML.Indexed (HTMLinput)
+import DOM.HTML.Indexed (HTMLinput, HTMLtr)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -595,8 +595,7 @@ renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, tra
                 [ HH.th [ HP.colSpan 4 ] [ HH.text "Total:"]
                 , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 transactionTotal]
                 ]
-            -- TODO: Color amount when out of balance
-            , HH.tr_
+            , HH.tr (outOfBalanceClass outOfBalance)
                 [ HH.th [ HP.colSpan 4 ] [ HH.text "Out of Balance:" ]
                 , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 outOfBalance ]
                 ]
@@ -624,6 +623,12 @@ renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, tra
         in
             fromMaybe acc
                 $ (+) <$> pure acc <*> map (\d -> multiplier * d) (toDecimal transaction.total)
+    outOfBalanceClass :: forall i. Decimal.Decimal -> Array (HP.IProp HTMLtr i)
+    outOfBalanceClass outOfBalance =
+        Array.singleton <<< HP.class_ <<< H.ClassName $
+            if outOfBalance == Decimal.fromInt 0
+                then "is-balanced"
+                else "is-out-of-balance"
 
 
 -- | Render the form row for a

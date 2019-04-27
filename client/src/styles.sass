@@ -297,6 +297,13 @@ form table
     &[name="item-total"], &[name="item-price"]
       width: 6.5em
 
+  /* Color the Out-Of-Balance row when the entry does not balance */
+  tfoot tr
+    &.is-out-of-balance
+      color: $danger-color
+    &.is-balanced
+      color: $success-color
+
 
 /* Account Select Dropdowns */
 div.account-select
