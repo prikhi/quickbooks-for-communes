@@ -4,9 +4,6 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
-    * Refactor enter keydown filtering from App module to new property
-      function? I.e., filter the event when passing it to onKeyDown instead of
-      in preventEnter? Or both?
     * Transaction tables
     * Store Credit fieldsets
     * Form validation
@@ -37,6 +34,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (sequence, for_)
 import Data.Tuple (Tuple(..))
+import DOM.HTML.Indexed (HTMLinput)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -44,6 +42,7 @@ import Halogen.HTML.Properties as HP
 import Web.Event.Event as E
 import Web.UIEvent.MouseEvent as ME
 import Web.UIEvent.KeyboardEvent as KE
+import Web.UIEvent.KeyboardEvent.EventTypes as KET
 
 import AccountSelect as AccountSelect
 import App
@@ -318,9 +317,8 @@ eval = case _ of
         deleteTransaction stopIndex transIndex
         preventClick ev
     TransactionInputEnter stopIndex transIndex ev -> do
-        wasPrevented <- preventEnter ev
-        when wasPrevented
-            $ focusNextRow stopIndex transIndex
+        void $ preventEnter ev
+        focusNextRow stopIndex transIndex
     SubmitForm ev -> do
         st <- H.get
         logShow st
@@ -702,7 +700,7 @@ tableInput name value action enterKeyAction hasError =
         [ HP.type_ HP.InputText
         , HP.name name
         , HE.onValueInput $ Just <<< action
-        , HE.onKeyDown $ Just <<< enterKeyAction
+        , onEnterDown enterKeyAction
         ] <> optionalValue value <> errorClass hasError
 
 tableAmountInput :: forall p i
@@ -717,7 +715,7 @@ tableAmountInput name value action enterKeyAction hasError =
         [ HP.type_ HP.InputNumber
         , HP.name name
         , HE.onValueInput $ Just <<< action
-        , HE.onKeyDown $ Just <<< enterKeyAction
+        , onEnterDown enterKeyAction
         , HP.min 0.0
         , HP.step $ HP.Step 0.01
         ] <> optionalValue value <> errorClass hasError
@@ -733,9 +731,18 @@ tableCheckbox name value action enterKeyAction =
         [ HP.type_ HP.InputCheckbox
         , HP.name name
         , HE.onChecked $ Just <<< action
-        , HE.onKeyDown $ Just <<< enterKeyAction
+        , onEnterDown enterKeyAction
         , HP.checked value
         ]
+
+-- | Trigger the action when the Enter key is pressed down.
+onEnterDown :: forall i. (KE.KeyboardEvent -> i) -> HP.IProp HTMLinput i
+onEnterDown action = HE.onKeyDown \keyEvent ->
+    let event = KE.toEvent keyEvent in
+    if E.type_ event == KET.keydown && KE.key keyEvent == "Enter" then
+        Just $ action keyEvent
+    else
+        Nothing
 
 errorClass :: forall r i. Boolean -> Array (HP.IProp ( class :: String | r ) i)
 errorClass hasError =
