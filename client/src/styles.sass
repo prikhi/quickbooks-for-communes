@@ -11,6 +11,7 @@ $blue-gray: #8D99AE
 $light-gray: #CBD0DA
 $gray-white: #F4F5F7
 
+$success-color: $green
 $danger-color: $magenta
 
 $body-text: $dark
@@ -267,10 +268,10 @@ form > p.form-errors
 
 /* Show success text in a box as well */
 p.success
-  color: $green
-  background-color: mix(darken($body-bg, 2%), $green, 92.5%)
+  color: $success-color
+  background-color: mix(darken($body-bg, 2%), $success-color, 92.5%)
   padding: 0.75em 1em
-  border: solid $border-width $green
+  border: solid $border-width $success-color
   border-radius: $border-radius
 
 
