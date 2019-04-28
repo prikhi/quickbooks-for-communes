@@ -401,6 +401,25 @@ div.account-select
 .is-balanced
   color: $success-color
 
+/* Show the Out of Balance amount for an entire entry at the bottom of the
+ * screen.
+ */
+dl.entry-out-of-balance-container
+  position: fixed
+  bottom: 0
+  right: 10%
+  margin: 0
+  padding: 0.75rem
+  background-color: $input-bg
+  border: 1px solid $body-text
+  border-top-left-radius: $border-radius
+  border-top-right-radius: $border-radius
+  border-bottom: 0
+  dt, dd
+    display: inline-block
+  dt
+    font-weight: bold
+
 
 
 /** Site Navigation **/

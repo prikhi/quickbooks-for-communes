@@ -4,7 +4,6 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
-    * Entry out of balance counter
     * Store Credit fieldsets
     * Form validation
     * Form submission
@@ -526,11 +525,35 @@ render st =
         <> Array.mapWithIndex (renderTripStop st.accounts st.errors) st.stops
         <> [ button "Add Stop" HP.ButtonButton (H.ClassName "primary") AddStop
            , submitButton "Submit Trip"
+           , renderEntryOutOfBalance st
            ]
   where
     errors :: String -> Array String
     errors field = V.getFieldErrors field st.errors
 
+
+renderEntryOutOfBalance :: forall f g m. State -> H.ComponentHTML f g m
+renderEntryOutOfBalance st =
+    HH.dl [ HP.classes
+                $ H.ClassName "entry-out-of-balance-container"
+                    `Array.cons` outOfBalanceClass balanceable outOfBalance
+          ]
+        [ HH.dt_ [ HH.text "Out of Balance:" ]
+        , HH.dd_ [ HH.text $ "$" <> Decimal.toFixed 2 outOfBalance ]
+        ]
+  where
+    balanceable :: Boolean
+    balanceable =
+        entryCashSpent st /= Nothing
+            || transactionTotal /= Decimal.fromInt 0
+    transactionTotal :: Decimal.Decimal
+    transactionTotal =
+        Array.foldl (\acc stop -> acc + stopTransactionTotal stop) (Decimal.fromInt 0)
+            st.stops
+    outOfBalance :: Decimal.Decimal
+    outOfBalance =
+            fromMaybe (Decimal.fromInt 0) (entryCashSpent st)
+                - transactionTotal
 
 -- | Render the fieldset for a TripStop.
 renderTripStop :: forall m
