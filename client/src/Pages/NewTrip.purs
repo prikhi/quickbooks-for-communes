@@ -8,7 +8,6 @@ TODO:
     * Store Credit fieldsets
     * Form validation
     * Form submission
-    * Custom styling for checkboxes
     * Use custom date picker? https://github.com/slamdata/purescript-halogen-datepicker
 -}
 module Pages.NewTrip
@@ -26,15 +25,16 @@ import Data.DateTime (date)
 import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
-import Data.Foldable (fold, traverse_)
+import Data.Foldable (fold, traverse_, notElem)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Int as Int
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Monoid (guard)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (sequence, for_)
 import Data.Tuple (Tuple(..))
-import DOM.HTML.Indexed (HTMLinput, HTMLtr)
+import DOM.HTML.Indexed (HTMLinput)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -192,6 +192,28 @@ addTransaction stop = stop
     , transactionCounter =
         (\(TransactionCount c) -> TransactionCount $ c + 1) stop.transactionCounter
     }
+
+-- | Sum the total amount for every Transaction in the TripStop.
+stopTransactionTotal :: TripStop -> Decimal.Decimal
+stopTransactionTotal { transactions } =
+    Array.foldl sumTotals (Decimal.fromInt 0) transactions
+  where
+    sumTotals :: Decimal.Decimal -> Transaction -> Decimal.Decimal
+    sumTotals acc transaction =
+        let multiplier = Decimal.fromInt $
+                if transaction.isReturn
+                    then -1
+                    else 1
+         in fromMaybe acc $
+                (+) <$> pure acc
+                    <*> map (\d -> multiplier * d) (toDecimal transaction.total)
+
+-- | Calculate the Cash Spent from the Trip's Advance & Return amounts.
+entryCashSpent :: State -> Maybe Decimal.Decimal
+entryCashSpent st =
+    (-) <$> toDecimal st.cashAdvance
+        <*> toDecimal st.cashReturned
+
 
 -- | Slots for each Transaction's AccountSelect component. These use the
 -- | StopCount & TransactionCount types instead of indexes to provide unique
@@ -568,13 +590,15 @@ renderTransactionTable :: forall m
    -> Int
    -> TripStop
    -> H.ComponentHTML Action ChildSlots m
-renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, transactions } =
+renderTransactionTable accounts formErrors stopIndex stop@{ stopCount, stopTotal, transactions } =
   let
     transactionTotal =
-        Array.foldl sumTotals (Decimal.fromInt 0) transactions
+        stopTransactionTotal stop
     outOfBalance =
-        fromMaybe transactionTotal
-            $ (-) <$> toDecimal stopTotal <*> pure transactionTotal
+        fromMaybe (Decimal.fromInt 0) (toDecimal stopTotal) - transactionTotal
+    balanceable =
+        toDecimal stopTotal `notElem` [ Nothing, Just $ Decimal.fromInt 0 ]
+            || transactionTotal /= Decimal.fromInt 0
   in
     HH.table_
         [ HH.thead_
@@ -595,7 +619,7 @@ renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, tra
                 [ HH.th [ HP.colSpan 4 ] [ HH.text "Total:"]
                 , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 transactionTotal]
                 ]
-            , HH.tr (outOfBalanceClass outOfBalance)
+            , HH.tr [ HP.classes $ outOfBalanceClass balanceable outOfBalance ]
                 [ HH.th [ HP.colSpan 4 ] [ HH.text "Out of Balance:" ]
                 , HH.td [ HP.colSpan 3 ] [ HH.text $ "$" <> Decimal.toFixed 2 outOfBalance ]
                 ]
@@ -614,21 +638,6 @@ renderTransactionTable accounts formErrors stopIndex { stopCount, stopTotal, tra
                     [ HH.text "Add Rows" ]
                 ]
             ]
-    sumTotals :: Decimal.Decimal -> Transaction -> Decimal.Decimal
-    sumTotals acc transaction =
-        let multiplier = Decimal.fromInt $
-                if transaction.isReturn
-                    then -1
-                    else 1
-        in
-            fromMaybe acc
-                $ (+) <$> pure acc <*> map (\d -> multiplier * d) (toDecimal transaction.total)
-    outOfBalanceClass :: forall i. Decimal.Decimal -> Array (HP.IProp HTMLtr i)
-    outOfBalanceClass outOfBalance =
-        Array.singleton <<< HP.class_ <<< H.ClassName $
-            if outOfBalance == Decimal.fromInt 0
-                then "is-balanced"
-                else "is-out-of-balance"
 
 
 -- | Render the form row for a
@@ -759,13 +768,18 @@ errorClass hasError =
     else
         []
 
+outOfBalanceClass :: Boolean -> Decimal.Decimal -> Array H.ClassName
+outOfBalanceClass balanceable outOfBalance =
+    guard balanceable <<< Array.singleton <<< H.ClassName $
+        if outOfBalance == Decimal.fromInt 0
+            then "is-balanced"
+            else "is-out-of-balance"
+
 -- | Render a disabled input for the Cash Spent, calculated from the Trip
 -- | Advance and the Cash Returned.
 cashSpentInput :: forall a q m. State -> H.ComponentHTML a q m
 cashSpentInput st =
-  let cashSpent = (-)
-        <$> toDecimal st.cashAdvance
-        <*> toDecimal st.cashReturned
+  let cashSpent = entryCashSpent st
    in
     labelWrapper "Cash Spent" [] "The amount of cash spent during your trip." $
         HH.input $

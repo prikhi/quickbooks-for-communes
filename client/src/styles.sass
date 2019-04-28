@@ -343,13 +343,6 @@ form table
     &[name="item-total"], &[name="item-price"]
       width: 6.5em
 
-  /* Color the Out-Of-Balance row when the entry does not balance */
-  tfoot tr
-    &.is-out-of-balance
-      color: $danger-color
-    &.is-balanced
-      color: $success-color
-
 
 /* Account Select Dropdowns */
 div.account-select
@@ -398,6 +391,15 @@ div.account-select
         margin-top: 0.33rem
       &:last-of-type
         margin-bottom: 0.33rem
+
+
+/* Entry Forms */
+
+/* Color the Out-Of-Balance amounts depending on their status. */
+.is-out-of-balance
+  color: $danger-color
+.is-balanced
+  color: $success-color
 
 
 
