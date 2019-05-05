@@ -12,6 +12,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Pages.EditCompany as EditCompany
 import Pages.NewCompany as NewCompany
 import Pages.NewTrip as NewTrip
 import Routing.Match (Match, lit, root, end)
@@ -34,6 +35,7 @@ import Server (class Server)
 data Route
     = Home
     | NewCompany
+    | EditCompany
     | NewTrip
 
 derive instance genericRoute :: Generic Route _
@@ -48,6 +50,8 @@ routeName = case _ of
         "Home"
     NewCompany ->
         "New Company"
+    EditCompany ->
+        "Edit Company"
     NewTrip ->
         "Add a Trip"
 
@@ -73,17 +77,20 @@ router =
     root *> oneOf
         [ home
         , newCompany
+        , editCompany
         , newTrip
         ]
   where
     home = Home <$ end
     newCompany = NewCompany <$ lit "new-company" <* end
+    editCompany = EditCompany <$ lit "edit-company" <* end
     newTrip = NewTrip <$ lit "trips" <* lit "add" <* end
 
 reverse :: Route -> String
 reverse = case _ of
     Home -> "/"
     NewCompany -> "/new-company/"
+    EditCompany -> "/edit-company/"
     NewTrip -> "/trips/add/"
 
 component :: forall i o. H.Component HH.HTML Query i o AppM
@@ -106,12 +113,17 @@ type PageSlot a = H.Slot a Void Unit
 -- | Slots for each page.
 type ChildSlots =
     ( newCompany :: PageSlot NewCompany.Query
+    , editCompany :: PageSlot EditCompany.Query
     , newTrip :: PageSlot NewTrip.Query
     )
 
 -- | Selector for the NewCompany Slot.
 _newCompany :: SProxy "newCompany"
 _newCompany = SProxy
+
+-- | Selector for the EditCompany Slot.
+_editCompany :: SProxy "editCompany"
+_editCompany = SProxy
 
 -- | Selector for the NewTrip Slot.
 _newTrip :: SProxy "newTrip"
@@ -163,6 +175,7 @@ renderHeader currentPage =
         [ brandLink
         , navLink NewTrip
         , navLink NewCompany
+        , navLink EditCompany
         ]
   where
     brandLink :: HH.HTML a Action
@@ -193,10 +206,10 @@ renderPage = case _ of
         HH.fromPlainHTML renderHomepage
     NewCompany ->
         HH.slot _newCompany unit NewCompany.component unit (const Nothing)
+    EditCompany ->
+        HH.slot _editCompany unit EditCompany.component unit (const Nothing)
     NewTrip ->
         HH.slot _newTrip unit NewTrip.component unit (const Nothing)
-  where
-    liText t = HH.li_ [HH.text t]
 
 -- | Render the static HTML for the home page.
 renderHomepage :: HH.PlainHTML
