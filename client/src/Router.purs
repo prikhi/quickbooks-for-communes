@@ -100,10 +100,13 @@ initial :: State
 initial = { currentPage : Home }
 
 
+-- | Generic Slot Type for pages.
+type PageSlot a = H.Slot a Void Unit
+
 -- | Slots for each page.
 type ChildSlots =
-    ( newCompany :: H.Slot NewCompany.Query Void Unit
-    , newTrip :: H.Slot NewTrip.Query Void Unit
+    ( newCompany :: PageSlot NewCompany.Query
+    , newTrip :: PageSlot NewTrip.Query
     )
 
 -- | Selector for the NewCompany Slot.
