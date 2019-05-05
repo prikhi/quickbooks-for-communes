@@ -346,6 +346,7 @@ form table
 
 /* Account Select Dropdowns */
 div.account-select
+  font-weight: normal
   position: relative
   // Dropdown Container
   > div
@@ -391,6 +392,19 @@ div.account-select
         margin-top: 0.33rem
       &:last-of-type
         margin-bottom: 0.33rem
+
+/* Re-style Account Selects for horizontal forms */
+label > div.account-select
+  width: 33%
+  margin-top: auto
+  margin-left: 1em
+  input
+    width: 100%
+    font-size: 1rem
+    border-radius: $border-radius
+    padding: 0.35em 0.5em
+  > div
+    color: $body-text
 
 
 /* Entry Forms */
