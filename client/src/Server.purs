@@ -9,10 +9,11 @@ import Data.Argonaut.Core (Json, jsonEmptyObject)
 import Data.Argonaut.Decode ((.:), class DecodeJson, decodeJson)
 import Data.Argonaut.Encode ((:=), (~>), class EncodeJson, encodeJson)
 import Data.Bifunctor (lmap)
-import Data.Either (Either(Left))
+import Data.Either (Either(..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
+import Data.Maybe (Maybe)
 import Data.MediaType (MediaType(..))
 import Effect.Aff (Aff)
 import Effect.Aff.Class (liftAff)
@@ -30,6 +31,10 @@ import Validation as V
 class Monad m <= Server m where
     -- | Fetch the data for all available Companies.
     companiesRequest :: m (Either String (Array CompanyData))
+    -- | Fetch the Trip Advances & Store Accounts for a Company.
+    companyAccountsRequest :: Int -> m (Either String CompanyAccounts)
+    -- | Update the Trip Advances & Store Acounts for a Company.
+    editCompanyRequest :: Int -> EditCompanyData -> m (Response (Either V.FormErrors EmptyJson))
     -- | Fetch the Account data for a Company.
     accountsRequest :: Int -> m (Either String (Array AccountData))
     -- | Add a new Company.
@@ -37,14 +42,20 @@ class Monad m <= Server m where
 
 instance serverApp :: Server AppM where
     companiesRequest = liftAff cdRequest
+    companyAccountsRequest = liftAff <<< caRequest
+    editCompanyRequest cId = liftAff <<< ecdRequest cId
     accountsRequest = liftAff <<< adRequest
     newCompanyRequest = liftAff <<< ncRequest
 
 instance serverHalogen :: Server m => Server (H.HalogenM s f g o m) where
     companiesRequest = H.lift companiesRequest
+    companyAccountsRequest = H.lift <<< companyAccountsRequest
+    editCompanyRequest cId = H.lift <<< editCompanyRequest cId
     accountsRequest = H.lift <<< accountsRequest
     newCompanyRequest = H.lift <<< newCompanyRequest
 
+
+-- CompanyData Request
 
 cdRequest :: Aff (Either String (Array CompanyData))
 cdRequest =
@@ -67,6 +78,86 @@ instance decodeCompanyData :: DecodeJson CompanyData where
         name <- o .: "cdCompanyName"
         pure $ CompanyData { id, name }
 
+ecdRequest :: Int -> EditCompanyData -> Aff (Response (Either V.FormErrors EmptyJson))
+ecdRequest cId ecData =
+    V.handleResponseErrors
+        <$> post Response.string ("/api/edit-company/" <> show cId <> "/")
+                (Request.json $ encodeJson ecData)
+
+
+data EditCompanyData
+    = EditCompany
+        { tripAdvances :: Maybe Int
+        , storeAccounts :: Array StoreAccount
+        }
+derive instance genericEditCompanyData :: Generic EditCompanyData _
+
+instance showEditCompanyData :: Show EditCompanyData where
+    show = genericShow
+
+instance encodeEditCompanyData :: EncodeJson EditCompanyData where
+    encodeJson (EditCompany c) =
+           "ecTripAdvances" := c.tripAdvances
+        ~> "ecStoreAccounts" := c.storeAccounts
+        ~> jsonEmptyObject
+
+-- | A type for ignored JSON responses. We use this instead of Unit because
+-- | Unit's DecodeJson instance expects a `null` value.
+data EmptyJson = EmptyJson
+
+-- | Always return an EmptyJson, no matter what structure the JSON is.
+instance decodeEmptyJson :: DecodeJson EmptyJson where
+    decodeJson = const $ Right EmptyJson
+
+
+-- CompanyAccounts Request
+
+caRequest :: Int -> Aff (Either String CompanyAccounts)
+caRequest id =
+    decodeResponse <$> get Response.json ("/api/company-accounts/" <> show id <> "/")
+
+data CompanyAccounts
+    = CompanyAccounts
+        { tripAdvances :: Maybe AccountData
+        , storeAccounts :: Array StoreAccount
+        }
+derive instance genericCompanyAccounts :: Generic CompanyAccounts _
+
+instance showCompanyAccounts :: Show CompanyAccounts where
+    show = genericShow
+
+instance decodeCompanyAccounts :: DecodeJson CompanyAccounts where
+    decodeJson json = do
+        o <- decodeJson json
+        tripAdvances <- o .: "caTripAdvances"
+        storeAccounts <- o .: "caStoreAccounts"
+        pure $ CompanyAccounts { tripAdvances, storeAccounts }
+
+data StoreAccount
+    = StoreAccount
+    { name :: String
+    , account :: Int
+    }
+derive instance genericStoreAccount :: Generic StoreAccount _
+
+instance showStoreAccount :: Show StoreAccount where
+    show = genericShow
+
+instance decodeStoreAccount :: DecodeJson StoreAccount where
+    decodeJson json = do
+        o <- decodeJson json
+        name <- o .: "saName"
+        account <- o .: "saAccount"
+        pure $ StoreAccount { name, account }
+
+instance encodeStoreAccount :: EncodeJson StoreAccount where
+    encodeJson (StoreAccount acc) =
+           "saName" := acc.name
+        ~> "saAccount" := acc.account
+        ~> jsonEmptyObject
+
+
+-- AccountData Request
 
 adRequest :: Int -> Aff (Either String (Array AccountData))
 adRequest companyId =
@@ -180,6 +271,9 @@ decodeResponse :: forall a
 decodeResponse resp =
     lmap printResponseFormatError resp.body >>= decodeJson
 
+
+
+-- New Company Request
 
 -- | Handle NewCompany POST requests.
 -- TODO: abstract out Endpoint type when we have multiple server routes
