@@ -41,6 +41,7 @@ library:
     dependencies:
         - aeson
         - bcrypt
+        - containers
         - unordered-containers
         - resource-pool
         - exceptions

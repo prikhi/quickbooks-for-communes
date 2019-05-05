@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,6 +16,9 @@ where
 
 import           Api                            ( FrontendAPI
                                                 , CompanyData(..)
+                                                , EditCompanyData(..)
+                                                , CompanyAccountsData(..)
+                                                , StoreAccountData(..)
                                                 , AccountData(..)
                                                 , NewCompany(..)
                                                 )
@@ -22,7 +26,9 @@ import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( MonadThrow
                                                 , throw
                                                 )
-import           Control.Monad                  ( (>=>) )
+import           Control.Monad                  ( (>=>)
+                                                , forM_
+                                                )
 import           Control.Monad.Reader           ( MonadReader
                                                 , asks
                                                 )
@@ -30,16 +36,25 @@ import           Data.Maybe                     ( isNothing )
 import           Data.Text                      ( pack )
 import qualified Data.Text                     as T
 import           Database.Persist.Sql           ( (==.)
+                                                , (<-.)
+                                                , (/<-.)
+                                                , (=.)
                                                 , Entity(..)
                                                 , SelectOpt(..)
                                                 , selectList
                                                 , insert_
                                                 , get
                                                 , getBy
+                                                , getEntity
+                                                , update
+                                                , upsertBy
+                                                , deleteWhere
                                                 )
 import           DB.Schema                      ( Company(..)
                                                 , CompanyId
                                                 , Account(..)
+                                                , AccountId
+                                                , StoreAccount(..)
                                                 , Unique(..)
                                                 , EntityField(..)
                                                 )
@@ -56,12 +71,19 @@ import           Types                          ( AppEnv(..)
                                                 , SqlDB(..)
                                                 , HashPassword(..)
                                                 )
+import           Utils                          ( traverseWithIndex )
 import qualified Validation                    as V
 
 
 -- | The assembled handlers for the 'FrontendAPI' type.
 routes :: ServerT FrontendAPI AppM
-routes = companies :<|> accounts :<|> newCompany :<|> generateQwcFile
+routes =
+    companies
+        :<|> editCompany
+        :<|> companyAccounts
+        :<|> accounts
+        :<|> newCompany
+        :<|> generateQwcFile
 
 
 -- | Fetch all Companies.
@@ -73,18 +95,106 @@ companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
         CompanyData {cdCompanyId = cId, cdCompanyName = companyName c}
 
 
+editCompany :: (SqlDB m, MonadThrow m) => CompanyId -> EditCompanyData -> m ()
+editCompany companyId = V.validateOrThrow >=> \EditCompany {..} -> runDB $ do
+    let submittedAccounts =
+            maybe [] (flip (:) []) ecTripAdvances
+                <> map saAccount ecStoreAccounts
+    validAccounts <-
+        map entityKey
+            <$> selectList
+                    [ AccountId <-. submittedAccounts
+                    , AccountCompany ==. companyId
+                    ]
+                    []
+    let
+        validationTest =
+            ()
+                <$ validateTripAdvance validAccounts ecTripAdvances
+                <* traverseWithIndex (validateStoreAccount validAccounts)
+                                     ecStoreAccounts
+    V.whenValid validationTest $ \_ -> do
+        update companyId [CompanyTripAdvances =. ecTripAdvances]
+        deleteWhere
+            [ StoreAccountCompany ==. companyId
+            , StoreAccountAccount /<-. map saAccount ecStoreAccounts
+            ]
+        forM_ ecStoreAccounts $ \StoreAccountData {..} -> upsertBy
+            (UniqueStoreAccount saAccount companyId)
+            (StoreAccount
+                { storeAccountName    = saName
+                , storeAccountAccount = saAccount
+                , storeAccountCompany = companyId
+                }
+            )
+            [StoreAccountName =. saName]
+  where
+    validateTripAdvance
+        :: [AccountId] -> Maybe AccountId -> V.Validation V.FormErrors ()
+    validateTripAdvance accs = \case
+        Nothing        -> pure ()
+        Just tripAdvId -> if tripAdvId `notElem` accs
+            then V.validate
+                "trip-advances"
+                "Could not find this Account in the selected Company."
+                (const True)
+                ()
+            else pure ()
+    validateStoreAccount
+        :: [AccountId]
+        -> Int
+        -> StoreAccountData
+        -> V.Validation V.FormErrors AccountId
+    validateStoreAccount accs index storeAccount =
+        V.validate ("store-account-" <> T.pack (show index) <> "-account")
+                   "Could not find this Account in the selected Company."
+                   (`elem` accs)
+            $ saAccount storeAccount
+
+
+companyAccounts :: SqlDB m => CompanyId -> m CompanyAccountsData
+companyAccounts companyId = do
+    result <- runDB $ do
+        companyAccs   <- get companyId
+        storeAccounts <- selectList [StoreAccountCompany ==. companyId]
+                                    [Asc StoreAccountName]
+        case companyAccs of
+            Just company -> do
+                maybeTripAdvance <- case companyTripAdvances company of
+                    Nothing        -> return Nothing
+                    Just tripAdvId -> getEntity tripAdvId
+                return (maybeTripAdvance, storeAccounts)
+            Nothing -> return (Nothing, storeAccounts)
+    return $ convert result
+  where
+    convert
+        :: (Maybe (Entity Account), [Entity StoreAccount])
+        -> CompanyAccountsData
+    convert (maybeTripAdvance, storeAccounts) = CompanyAccountsData
+        { caTripAdvances  = fmap toAccountData maybeTripAdvance
+        , caStoreAccounts = map convertStore storeAccounts
+        }
+    convertStore :: Entity StoreAccount -> StoreAccountData
+    convertStore (Entity _ acc) = StoreAccountData
+        { saName    = storeAccountName acc
+        , saAccount = storeAccountAccount acc
+        }
+
+
+
 -- | Fetch the Accounts for a 'Company'.
 accounts :: SqlDB m => CompanyId -> m [AccountData]
-accounts companyId = runDB $ map convert <$> selectList
+accounts companyId = runDB $ map toAccountData <$> selectList
     [AccountCompany ==. companyId, AccountIsActive ==. True]
     [Asc AccountName]
-  where
-    convert (Entity aId a) = AccountData
-        { adAccountId          = aId
-        , adAccountName        = accountName a
-        , adAccountDescription = accountDescription a
-        , adAccountType        = accountType a
-        }
+
+toAccountData :: Entity Account -> AccountData
+toAccountData (Entity aId a) = AccountData
+    { adAccountId          = aId
+    , adAccountName        = accountName a
+    , adAccountDescription = accountDescription a
+    , adAccountType        = accountType a
+    }
 
 
 -- | Validate & create a new 'Company'.
