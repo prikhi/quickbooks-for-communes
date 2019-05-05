@@ -24,6 +24,7 @@ module Validation
     , validationError
     , whenValid
       -- * Validators
+    , V.Validation
     , isNonEmpty
     , validate
       -- * Errors
