@@ -111,6 +111,7 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
                         , companyPassword     = pass
                         , companyFileName     = Nothing
                         , companyLastSyncTime = Nothing
+                        , companyTripAdvances = Nothing
                         }
                 insert_ company
                 return $ companyQwcConfig cfg company

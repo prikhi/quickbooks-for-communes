@@ -70,6 +70,7 @@ Company
     password Text
     fileName Text Maybe
     lastSyncTime UTCTime Maybe
+    tripAdvances AccountId Maybe
     UniqueCompanyName name
     UniqueCompanyUser user
     deriving Show Read
@@ -91,6 +92,9 @@ Account
 StoreAccount
     name Text
     account AccountId
+    company CompanyId
+    UniqueStoreAccount account company
+    UniqueStoreName name company
     deriving Show Read
 
 Trip
