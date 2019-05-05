@@ -69,6 +69,8 @@ type Slot
 data Query a
     = Focus a
     -- ^ Focus the input field
+    | Select Int a
+    -- ^ Select the account with the given ID.
 
 -- | Messages the component can send to it's parent.
 data Message
@@ -239,11 +241,22 @@ evalAction = case _ of
 
 
 -- | Handle requests from parent components.
-evalQuery :: forall s o m a. Query a -> H.HalogenM s Action ChildSlots o m (Maybe a)
+evalQuery :: forall o m a. Query a -> H.HalogenM State Action ChildSlots o m (Maybe a)
 evalQuery = case _ of
     Focus next -> do
         -- Forward focus requests to the NSelect child component.
         void $ H.query _select unit Select.focus
+        pure $ Just next
+    Select accountId next -> do
+        items <- H.gets (_.items)
+        case Array.findIndex (\(AccountData a) -> a.id == accountId) items of
+            Nothing ->
+                pure unit
+            Just accountIndex -> do
+                st <- H.modify \st -> st
+                    { filteredItems = map pureItem st.items }
+                void $ H.query _select unit $ Select.highlight accountIndex
+                void $ H.query _select unit Select.select
         pure $ Just next
 
 
