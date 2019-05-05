@@ -36,6 +36,9 @@ type ValidationResult a = Either FormErrors a
 -- | A validator transforms an input type into the resuls of a validation.
 type Validator a b = (->) a (ValidationResult b)
 
+-- | A validation checks and transforms some value.
+type Validation a b = (->) a (V.V FormErrors b)
+
 
 -- | Empty FormErrors means no errors!
 empty :: FormErrors
@@ -62,7 +65,7 @@ singleError field =
 
 
 -- | Ensure a Maybe String has a non-empty value present.
-validateNonEmpty :: String -> Maybe String -> V.V FormErrors String
+validateNonEmpty :: String -> Validation (Maybe String) String
 validateNonEmpty field = case _ of
     Nothing -> singleError field "A value is required."
     Just "" -> singleError field "A value is required."
