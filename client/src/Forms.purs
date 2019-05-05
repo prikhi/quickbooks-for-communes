@@ -5,6 +5,7 @@ module Forms
     , button
     , submitButton
     , input
+    , optionalInput
     , dateInput
     , dollarInput
     , optionalValue
@@ -146,6 +147,28 @@ input label type_ value action errors helpText =
         HH.input $
             [ HP.type_ type_
             , HP.required true
+            , HE.onValueInput $ Just <<< action
+            ] <> optionalValue value
+
+-- | Render an optional HH.input element. TODO: Refactor this & input functions.
+optionalInput :: forall p i
+    . String
+   -- ^ Label Text
+   -> HP.InputType
+   -- ^ input `type`
+   -> Maybe String
+   -- ^ Value
+   -> (String -> i)
+   -- ^ onChange action
+   -> Array String
+   -- ^ Errors
+   -> String
+   -- ^ Help text
+   -> HH.HTML p i
+optionalInput label type_ value action errors helpText =
+    labelWrapper label errors helpText $
+        HH.input $
+            [ HP.type_ type_
             , HE.onValueInput $ Just <<< action
             ] <> optionalValue value
 
