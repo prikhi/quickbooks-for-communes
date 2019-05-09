@@ -35,6 +35,8 @@ class Monad m <= Server m where
     companyAccountsRequest :: Int -> m (Either String CompanyAccounts)
     -- | Update the Trip Advances & Store Acounts for a Company.
     editCompanyRequest :: Int -> EditCompanyData -> m (Response (Either V.FormErrors EmptyJson))
+    -- | Fetch the StoreAccounts for the New Trip Form.
+    tripStoreRequest :: Int -> m (Either String (Array TripStoreAccount))
     -- | Fetch the Account data for a Company.
     accountsRequest :: Int -> m (Either String (Array AccountData))
     -- | Add a new Company.
@@ -44,6 +46,7 @@ instance serverApp :: Server AppM where
     companiesRequest = liftAff cdRequest
     companyAccountsRequest = liftAff <<< caRequest
     editCompanyRequest cId = liftAff <<< ecdRequest cId
+    tripStoreRequest = liftAff <<< tsaRequest
     accountsRequest = liftAff <<< adRequest
     newCompanyRequest = liftAff <<< ncRequest
 
@@ -51,6 +54,7 @@ instance serverHalogen :: Server m => Server (H.HalogenM s f g o m) where
     companiesRequest = H.lift companiesRequest
     companyAccountsRequest = H.lift <<< companyAccountsRequest
     editCompanyRequest cId = H.lift <<< editCompanyRequest cId
+    tripStoreRequest = H.lift <<< tripStoreRequest
     accountsRequest = H.lift <<< accountsRequest
     newCompanyRequest = H.lift <<< newCompanyRequest
 
@@ -155,6 +159,33 @@ instance encodeStoreAccount :: EncodeJson StoreAccount where
            "saName" := acc.name
         ~> "saAccount" := acc.account
         ~> jsonEmptyObject
+
+
+-- Trip Store Accounts Request
+
+tsaRequest :: Int -> Aff (Either String (Array TripStoreAccount))
+tsaRequest companyId =
+    decodeResponse <$> get Response.json ("/api/store-accounts/" <> show companyId)
+
+data TripStoreAccount
+    = TripStoreAccount
+        { id :: Int
+        , name :: String
+        }
+derive instance genericTripStoreAccount :: Generic TripStoreAccount _
+
+instance showTripStoreAccount :: Show TripStoreAccount where
+    show = genericShow
+
+instance eqTripStoreAccount :: Eq TripStoreAccount where
+    eq = genericEq
+
+instance decodeTripStoreAccount :: DecodeJson TripStoreAccount where
+    decodeJson json = do
+        o <- decodeJson json
+        id <- o .: "tsaId"
+        name <- o .: "tsaName"
+        pure $ TripStoreAccount { name, id }
 
 
 -- AccountData Request
