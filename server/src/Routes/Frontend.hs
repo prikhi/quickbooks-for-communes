@@ -19,6 +19,7 @@ import           Api                            ( FrontendAPI
                                                 , EditCompanyData(..)
                                                 , CompanyAccountsData(..)
                                                 , StoreAccountData(..)
+                                                , TripStoreAccount(..)
                                                 , AccountData(..)
                                                 , NewCompany(..)
                                                 )
@@ -81,6 +82,7 @@ routes =
     companies
         :<|> editCompany
         :<|> companyAccounts
+        :<|> tripStoreAccounts
         :<|> accounts
         :<|> newCompany
         :<|> generateQwcFile
@@ -95,6 +97,9 @@ companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
         CompanyData {cdCompanyId = cId, cdCompanyName = companyName c}
 
 
+-- | Update a Company's TripAdvances & StoreAccounts.
+--
+-- TODO: Require user account via cookie auth
 editCompany :: (SqlDB m, MonadThrow m) => CompanyId -> EditCompanyData -> m ()
 editCompany companyId = V.validateOrThrow >=> \EditCompany {..} -> runDB $ do
     let submittedAccounts =
@@ -152,6 +157,7 @@ editCompany companyId = V.validateOrThrow >=> \EditCompany {..} -> runDB $ do
             $ saAccount storeAccount
 
 
+-- | Fetch the TripAdvances Account & All Store Accounts for a Company.
 companyAccounts :: SqlDB m => CompanyId -> m CompanyAccountsData
 companyAccounts companyId = do
     result <- runDB $ do
@@ -180,6 +186,16 @@ companyAccounts companyId = do
         , saAccount = storeAccountAccount acc
         }
 
+
+-- | Return the StoreAccount's for a Company's Trip form.
+tripStoreAccounts :: SqlDB m => CompanyId -> m [TripStoreAccount]
+tripStoreAccounts companyId = runDB $ map convert <$> selectList
+    [StoreAccountCompany ==. companyId]
+    [Asc StoreAccountName]
+  where
+    convert :: Entity StoreAccount -> TripStoreAccount
+    convert (Entity saId sa) =
+        TripStoreAccount {tsaId = saId, tsaName = storeAccountName sa}
 
 
 -- | Fetch the Accounts for a 'Company'.

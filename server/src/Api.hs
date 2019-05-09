@@ -16,6 +16,7 @@ module Api
     , EditCompanyData(..)
     , CompanyAccountsData(..)
     , StoreAccountData(..)
+    , TripStoreAccount(..)
     , AccountData(..)
     , NewCompany(..)
     -- * QuickBooks Types
@@ -36,6 +37,7 @@ import           Database.Persist.Sql           ( fromSqlKey )
 import           DB.Fields                      ( AccountTypeField )
 import           DB.Schema                      ( CompanyId
                                                 , AccountId
+                                                , StoreAccountId
                                                 )
 import           GHC.Generics                   ( Generic )
 import           QuickBooks.WebConnector        ( QWCConfig
@@ -75,6 +77,7 @@ type FrontendAPI =
     :<|> "edit-company" :> Capture "companyId" CompanyId
             :> ReqBody '[JSON] EditCompanyData :> Post '[JSON] ()
     :<|> "company-accounts" :> Capture "companyId" CompanyId :> Get '[JSON] CompanyAccountsData
+    :<|> "store-accounts" :> Capture "companyId" CompanyId :> Get '[JSON] [TripStoreAccount]
     :<|> "accounts" :> Capture "companyid" CompanyId :> Get '[JSON] [AccountData]
     :<|> "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
@@ -163,6 +166,16 @@ data AccountData
         } deriving (Show, Read, Generic)
 
 instance ToJSON AccountData
+
+
+-- | Data describing a StoreAccount for the Trip Form
+data TripStoreAccount
+    = TripStoreAccount
+        { tsaName :: Text
+        , tsaId :: StoreAccountId
+        } deriving (Show, Read, Generic)
+
+instance ToJSON TripStoreAccount
 
 
 -- | POST data for creating a new 'Company' model.
