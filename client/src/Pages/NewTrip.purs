@@ -4,9 +4,9 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
-    * Store Credit fieldsets
     * Form validation
     * Form submission
+    * Turn <a href="#"> "Add Rows" links into buttons styled like links
     * Use custom date picker? https://github.com/slamdata/purescript-halogen-datepicker
 -}
 module Pages.NewTrip
@@ -58,8 +58,8 @@ import Forms
     , button
     )
 import Server
-    ( CompanyData(..), AccountData
-    , class Server, companiesRequest, accountsRequest
+    ( CompanyData(..), AccountData, TripStoreAccount(..)
+    , class Server, companiesRequest, accountsRequest, tripStoreRequest
     )
 import Validation as V
 
@@ -89,6 +89,7 @@ component =
 type State =
     { companies :: Array CompanyData
     , accounts :: Array AccountData
+    , storeAccounts :: Array TripStoreAccount
     , company :: Maybe String
     , date :: Maybe String
     , name :: Maybe String
@@ -96,6 +97,7 @@ type State =
     , cashAdvance :: Maybe String
     , cashReturned :: Maybe String
     , stops :: Array TripStop
+    , storeCreditStops :: Array StoreCreditStop
     , stopCounter :: StopCount
     , errors :: V.FormErrors
     }
@@ -104,6 +106,7 @@ initial :: State
 initial =
     { companies: []
     , accounts: []
+    , storeAccounts: []
     , company: Nothing
     , date: Nothing
     , name: Nothing
@@ -111,6 +114,7 @@ initial =
     , cashAdvance: Nothing
     , cashReturned: Nothing
     , stops: [ initialStop $ StopCount 0 ]
+    , storeCreditStops: []
     , stopCounter: StopCount 1
     , errors: V.empty
     }
@@ -153,6 +157,42 @@ initialTransaction transactionCount =
     , transactionCount
     }
 
+type StoreCreditStop =
+    { storeAccount :: Maybe TripStoreAccount
+    , stopCount :: StopCount
+    , stopTotal :: Maybe String
+    , transactions :: Array StoreCreditTransaction
+    , transactionCounter :: TransactionCount
+    }
+
+initialStoreCreditStop :: Array TripStoreAccount -> StopCount -> StoreCreditStop
+initialStoreCreditStop storeAccounts stopCount =
+    { storeAccount: Array.head storeAccounts
+    , stopCount
+    , stopTotal: Nothing
+    , transactions: [initialStoreCreditTransaction $ TransactionCount 0]
+    , transactionCounter: TransactionCount 1
+    }
+
+type StoreCreditTransaction =
+    { account :: Maybe AccountData
+    , memo :: Maybe String
+    , amount :: Maybe String
+    , tax :: Maybe String
+    , total :: Maybe String
+    , transactionCount :: TransactionCount
+    }
+
+initialStoreCreditTransaction :: TransactionCount -> StoreCreditTransaction
+initialStoreCreditTransaction transactionCount =
+    { account: Nothing
+    , memo: Nothing
+    , amount: Nothing
+    , tax: Just "5.3"
+    , total: Nothing
+    , transactionCount
+    }
+
 -- | An increasing counter for the form's TripStops. Provides a unique index
 -- | for the AccountSelect component without relying on the Array position.
 data StopCount
@@ -185,27 +225,57 @@ instance transCountShow :: Show TransactionCount where
 
 -- | Append a new Transaction & increase the stop's transactionCounter.
 addTransaction :: TripStop -> TripStop
-addTransaction stop = stop
+addTransaction =
+    genericAddTransaction initialTransaction
+
+-- | Append a new StoreCreditTransaction & increase the stop's
+-- | transactionCounter.
+addCreditTransaction :: StoreCreditStop -> StoreCreditStop
+addCreditTransaction =
+    genericAddTransaction initialStoreCreditTransaction
+
+-- | Generically build & append a Transaction and increase the stop's
+-- | transactionCounter.
+genericAddTransaction :: forall trans stop
+    .  (TransactionCount -> trans)
+   -> { transactionCounter :: TransactionCount, transactions :: Array trans
+      | stop
+      }
+   -> { transactionCounter :: TransactionCount, transactions :: Array trans
+      | stop
+      }
+genericAddTransaction transactionMaker stop = stop
     { transactions =
-        stop.transactions <> [ initialTransaction stop.transactionCounter ]
+        stop.transactions <> [ transactionMaker stop.transactionCounter ]
     , transactionCounter =
         (\(TransactionCount c) -> TransactionCount $ c + 1) stop.transactionCounter
     }
 
 -- | Sum the total amount for every Transaction in the TripStop.
 stopTransactionTotal :: TripStop -> Decimal.Decimal
-stopTransactionTotal { transactions } =
+stopTransactionTotal =
+    genericStopTransactionTotal \trans ->
+        Decimal.fromInt $
+            if trans.isReturn
+                then -1
+                else 1
+
+creditStopTransactionTotal :: StoreCreditStop -> Decimal.Decimal
+creditStopTransactionTotal =
+    genericStopTransactionTotal (const $ Decimal.fromInt 1)
+
+genericStopTransactionTotal :: forall stop trans
+    . ({ total :: Maybe String | trans } -> Decimal.Decimal)
+   -> { transactions :: Array { total :: Maybe String | trans } | stop }
+   -> Decimal.Decimal
+genericStopTransactionTotal getMultiplier { transactions } =
     Array.foldl sumTotals (Decimal.fromInt 0) transactions
   where
-    sumTotals :: Decimal.Decimal -> Transaction -> Decimal.Decimal
+    sumTotals :: Decimal.Decimal -> { total :: Maybe String | trans } -> Decimal.Decimal
     sumTotals acc transaction =
-        let multiplier = Decimal.fromInt $
-                if transaction.isReturn
-                    then -1
-                    else 1
-         in fromMaybe acc $
-                (+) <$> pure acc
-                    <*> map (\d -> multiplier * d) (toDecimal transaction.total)
+        fromMaybe acc $
+            (+) <$> pure acc
+                <*> map (\d -> getMultiplier transaction * d) (toDecimal transaction.total)
 
 -- | Calculate the Cash Spent from the Trip's Advance & Return amounts.
 entryCashSpent :: State -> Maybe Decimal.Decimal
@@ -239,6 +309,10 @@ data Action
     | InputReturned String
     | RemoveStop Int
     | AddStop
+    | AddCreditStop
+    | SubmitForm E.Event
+    -- ^ Validate & POST the form.
+    -- Trip Stop Actions
     | StopInputName Int String
     | StopInputTotal Int String
     | StopAddRows Int ME.MouseEvent
@@ -250,8 +324,18 @@ data Action
     | TransactionCheckReturn Int Int Boolean
     | TransactionClickRemove Int Int ME.MouseEvent
     | TransactionInputEnter Int Int KE.KeyboardEvent
-    | SubmitForm E.Event
-    -- ^ Validate & POST the form.
+    -- Store Credit Stop Actions
+    | RemoveCreditStop Int
+    | CreditInputStore Int String
+    | CreditInputTotal Int String
+    | CreditStopAddRows Int ME.MouseEvent
+    | CreditTransactionHandleAccount Int Int AccountSelect.Message
+    | CreditTransactionInputMemo Int Int String
+    | CreditTransactionInputAmount Int Int String
+    | CreditTransactionInputTax Int Int String
+    | CreditTransactionInputTotal Int Int String
+    | CreditTransactionClickRemove Int Int ME.MouseEvent
+    | CreditTransactionInputEnter Int Int KE.KeyboardEvent
 
 -- | Initialize, update, & submit the form.
 eval :: forall m o
@@ -304,9 +388,19 @@ eval = case _ of
         H.modify_ $ \st -> st
             { stops = st.stops <> [ initialStop stopCount ]
             }
-        (_.stops >>> Array.length >>> (\x -> x - 1)) <$> H.get
-            >>= stopNameFieldRef >>> H.getHTMLElementRef
-            >>= traverse_ focusElement
+        focusLastStop (_.stops) stopNameFieldRef
+    AddCreditStop -> do
+        stopCount <- nextStopCount
+        H.modify_ $ \st -> st
+            { storeCreditStops =
+                st.storeCreditStops
+                    <> [ initialStoreCreditStop st.storeAccounts stopCount ]
+            }
+        focusLastStop (_.storeCreditStops) creditStopAccountFieldRef
+    SubmitForm ev -> do
+        st <- H.get
+        logShow st
+        preventSubmit ev
     StopInputName index str ->
         updateStop index (_ { name = Just str })
     StopInputTotal index str ->
@@ -320,7 +414,7 @@ eval = case _ of
         AccountSelect.Cleared ->
             updateTransaction stopIndex transIndex (_ { account = Nothing })
         AccountSelect.EnterKeyDownWhileClosed event ->
-            preventEnter event *> focusNextRow stopIndex transIndex
+            preventEnter event *> focusNextTransaction stopIndex transIndex
     TransactionInputMemo stopIndex transIndex str ->
         updateTransaction stopIndex transIndex (_ { memo = Just str })
     TransactionInputAmount stopIndex transIndex str -> do
@@ -337,13 +431,51 @@ eval = case _ of
     TransactionClickRemove stopIndex transIndex ev -> do
         deleteTransaction stopIndex transIndex
         preventClick ev
-    TransactionInputEnter stopIndex transIndex ev -> do
-        void $ preventEnter ev
-        focusNextRow stopIndex transIndex
-    SubmitForm ev -> do
+    TransactionInputEnter stopIndex transIndex ev ->
+        preventEnter ev *> focusNextTransaction stopIndex transIndex
+    RemoveCreditStop index ->
+        deleteCreditStop index
+    CreditInputStore index str -> do
         st <- H.get
-        logShow st
-        preventSubmit ev
+        case Int.fromString str of
+            Just storeId ->
+                updateCreditStop index \stop ->
+                    case Array.find (\(TripStoreAccount a) -> a.id == storeId) st.storeAccounts of
+                        Just tsa ->
+                            stop { storeAccount = Just tsa }
+                        Nothing ->
+                            stop
+            Nothing ->
+                pure unit
+    CreditInputTotal index str ->
+        updateCreditStop index (_ { stopTotal = Just str })
+    CreditStopAddRows index ev -> do
+        addRowsToCreditStop index 3
+        preventClick ev
+    CreditTransactionHandleAccount stopIndex transIndex msg -> case msg of
+        AccountSelect.Selected acc ->
+            updateCreditTransaction stopIndex transIndex (_ { account = Just acc })
+        AccountSelect.Cleared ->
+            updateCreditTransaction stopIndex transIndex (_ { account = Nothing })
+        AccountSelect.EnterKeyDownWhileClosed event ->
+            preventEnter event *> focusNextCreditTransaction stopIndex transIndex
+    CreditTransactionInputMemo stopIndex transIndex str ->
+        updateCreditTransaction stopIndex transIndex (_ { memo = Just str })
+    CreditTransactionInputAmount stopIndex transIndex str -> do
+        updateCreditTransaction stopIndex transIndex (_ { amount = Just str })
+        recalculateCreditTransactionTotal stopIndex transIndex
+    CreditTransactionInputTax stopIndex transIndex str -> do
+        updateCreditTransaction stopIndex transIndex (_ { tax = Just str })
+        recalculateCreditTransactionTotal stopIndex transIndex
+    CreditTransactionInputTotal stopIndex transIndex str -> do
+        updateCreditTransaction stopIndex transIndex (_ { total = Just str })
+        clearCreditAmountAndTax stopIndex transIndex
+    CreditTransactionClickRemove stopIndex transIndex ev -> do
+        deleteCreditTransaction stopIndex transIndex
+        preventClick ev
+    CreditTransactionInputEnter stopIndex transIndex ev ->
+        preventEnter ev *> focusNextCreditTransaction stopIndex transIndex
+
   where
     -- Build the string for a date input element.
     makeDate :: Date -> String
@@ -360,10 +492,15 @@ eval = case _ of
         . MonadState State m_
        => Server m_
        => Int -> m_ Unit
-    fetchAccounts companyId =
+    fetchAccounts companyId = do
         accountsRequest companyId >>= case _ of
             Right accs ->
                 H.modify_ (_ { accounts = accs })
+            Left _ ->
+                pure unit
+        tripStoreRequest companyId >>= case _ of
+            Right storeAccs ->
+                H.modify_ (_ { storeAccounts = storeAccs })
             Left _ ->
                 pure unit
     -- Set the trip number given a new date input string, if the old number
@@ -423,11 +560,13 @@ eval = case _ of
     -- Add additional transactions to a TripStop.
     addRowsToStop :: forall m_. MonadState State m_ => Int -> Int -> m_ Unit
     addRowsToStop index count =
-        let replicateM counter action =
-                if counter > 0
-                    then action *> replicateM (counter - 1) action
-                    else pure unit
-        in  replicateM count $ addRowToStop index
+        replicateM count $ addRowToStop index
+    -- Repeat a monadic action.
+    replicateM :: forall m_ a. Monad m_ => Int -> m_ a -> m_ Unit
+    replicateM count action =
+        if count > 0
+            then action *> replicateM (count - 1) action
+            else pure unit
     -- Add a single transaction to a TripStop, incresing it's transactionCounter.
     addRowToStop :: forall m_. MonadState State m_ => Int -> m_ Unit
     addRowToStop index =
@@ -452,16 +591,30 @@ eval = case _ of
                  fromMaybe stop.transactions
                     $ Array.deleteAt transIndex stop.transactions
             }
-    -- Set the Total Amount for a Transaction if it's Amount is entered.
     recalculateTransactionTotal :: forall m_
-        . MonadState State m_
-       => Int -> Int -> m_ Unit
+        . MonadState State m_ => Int -> Int -> m_ Unit
     recalculateTransactionTotal stopIndex transIndex =
-        updateTransaction stopIndex transIndex $ \transaction ->
+        recalculateTotal $ updateTransaction stopIndex transIndex
+    recalculateCreditTransactionTotal :: forall m_
+        . MonadState State m_ => Int -> Int -> m_ Unit
+    recalculateCreditTransactionTotal stopIndex transIndex =
+        recalculateTotal $ updateCreditTransaction stopIndex transIndex
+    -- Set the Total Amount for a Transaction if it's Amount is entered.
+    recalculateTotal :: forall m_ trans
+        . ( ( { amount :: Maybe String, tax :: Maybe String, total :: Maybe String | trans }
+                -> { amount :: Maybe String, tax :: Maybe String, total :: Maybe String | trans }
+            )
+         -> m_ Unit
+          )
+       -> m_ Unit
+    recalculateTotal updater =
+        updater $ \transaction ->
             transaction { total = map (Decimal.toFixed 2) $ calculateTotal transaction }
     -- Calculate the total from the Tax & Amount, Defaulting the Tax to 0% if
     -- not present.
-    calculateTotal :: Transaction -> Maybe Decimal.Decimal
+    calculateTotal :: forall trans
+        . { amount :: Maybe String, tax :: Maybe String | trans }
+       -> Maybe Decimal.Decimal
     calculateTotal transaction =
         let taxMultiplier =
                 fromMaybe (Decimal.fromInt 1)
@@ -473,22 +626,56 @@ eval = case _ of
     clearAmountAndTax stopIndex transIndex =
         updateTransaction stopIndex transIndex
             (_ { amount = Nothing, tax = Nothing })
-    -- Focus the transaction row after the given one, adding a new row if one
-    -- doesn't exist.
-    focusNextRow :: forall f o_ m_
+    -- Focus the Transaction after the one with the given index.
+    focusNextTransaction :: forall f o_ m_
         . Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
-    focusNextRow stopIndex transactionIndex = do
-        st <- H.get
-        for_ (Array.index st.stops stopIndex) \stop -> do
+    focusNextTransaction =
+        focusNextRow (_.stops) addRowToStop
+    -- Focus the StoreCreditTransaction after the one with the given index.
+    focusNextCreditTransaction :: forall f o_ m_
+        . Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
+    focusNextCreditTransaction =
+        focusNextRow (_.storeCreditStops) addRowToCreditStop
+    -- A generalized function for focusing the transaction row after the given
+    -- one - adding a new row if the specific transaction index is the last
+    -- row. This works for both TripStops & StoreCreditStops by passing a stops
+    -- selector for the State and a function to add a new row to the stop type.
+    focusNextRow :: forall f o_ m_ trans stop
+        . ( State
+            -> Array
+                { stopCount :: StopCount
+                , transactions ::
+                    Array { transactionCount :: TransactionCount | trans }
+                | stop
+                }
+          )
+       -> (Int -> H.HalogenM State f ChildSlots o_ m_ Unit)
+       -> Int
+       -> Int
+       -> H.HalogenM State f ChildSlots o_ m_ Unit
+    focusNextRow modelSelector rowAdder stopIndex transactionIndex = do
+        stops <- H.gets modelSelector
+        for_ (Array.index stops stopIndex) \stop -> do
             let transactionCount = Array.length stop.transactions
             when (transactionCount - 1 <= transactionIndex)
-                $ addRowsToStop stopIndex 1
-            focusStopTransaction stopIndex (transactionIndex + 1)
-    -- Change focus to the first input of a TripStop's Transaction.
-    focusStopTransaction :: forall f o_ m_
-        . Int -> Int -> H.HalogenM State f ChildSlots o_ m_ Unit
-    focusStopTransaction stopIndex transIndex = do
-        stops <- H.gets (_.stops)
+                $ rowAdder stopIndex
+            focusStopTransaction modelSelector stopIndex (transactionIndex + 1)
+    -- A generalized function for changing focus to the first input of a
+    -- TripStop or StoreCreditStop's Transaction.
+    focusStopTransaction :: forall f o_ m_ trans stop
+        . ( State
+            -> Array
+                { stopCount :: StopCount
+                , transactions ::
+                    Array { transactionCount :: TransactionCount | trans }
+                | stop
+                }
+          )
+        -> Int
+        -> Int
+        -> H.HalogenM State f ChildSlots o_ m_ Unit
+    focusStopTransaction modelSelector stopIndex transIndex = do
+        stops <- H.gets modelSelector
         case Array.index stops stopIndex of
             Just stop ->
                 case Array.index stop.transactions transIndex of
@@ -500,6 +687,66 @@ eval = case _ of
                         pure unit
             Nothing ->
                 pure unit
+    -- Focus a field of the last stop, given the stop selector & function to
+    -- generate an element reference.
+    focusLastStop :: forall m_ a f p o_
+        . FocusElement m_
+       => (State -> Array a)
+       -> (Int -> H.RefLabel)
+       -> H.HalogenM State f p o_ m_ Unit
+    focusLastStop modelSelector fieldRefFunction =
+        (modelSelector >>> Array.length >>> (\x -> x - 1)) <$> H.get
+            >>= fieldRefFunction >>> H.getHTMLElementRef
+            >>= traverse_ focusElement
+    -- Update a StoreCreditStop, given it's index.
+    updateCreditStop :: forall m_
+        . MonadState State m_
+       => Int -> (StoreCreditStop -> StoreCreditStop) -> m_ Unit
+    updateCreditStop index updater =
+        H.modify_ \st -> st
+            { storeCreditStops =
+                fromMaybe st.storeCreditStops
+                    $ Array.modifyAt index updater st.storeCreditStops
+            }
+    -- Add 3 Transaction rows to the StoreCreditStop at the given index.
+    addRowsToCreditStop :: forall m_. MonadState State m_ => Int -> Int -> m_ Unit
+    addRowsToCreditStop index count =
+        replicateM count $ addRowToCreditStop index
+    -- Add a Transaction row to the StoreCreditStop at the given index.
+    addRowToCreditStop :: forall m_. MonadState State m_ => Int -> m_ Unit
+    addRowToCreditStop index =
+        updateCreditStop index addCreditTransaction
+    -- Update the StoreCreditTransaction at the given stop & transaction index.
+    updateCreditTransaction :: forall m_
+        . MonadState State m_
+       => Int
+       -> Int
+       -> (StoreCreditTransaction -> StoreCreditTransaction)
+       -> m_ Unit
+    updateCreditTransaction stopIndex transIndex updater =
+        updateCreditStop stopIndex \stop -> stop
+            { transactions = fromMaybe stop.transactions
+                $ Array.modifyAt transIndex updater stop.transactions
+            }
+    clearCreditAmountAndTax :: forall m_
+        . MonadState State m_ => Int -> Int -> m_ Unit
+    clearCreditAmountAndTax stopIndex transIndex =
+        updateCreditTransaction stopIndex transIndex
+            (_ { amount = Nothing, tax = Nothing })
+    deleteCreditTransaction :: forall m_
+        . MonadState State m_ => Int -> Int -> m_ Unit
+    deleteCreditTransaction stopIndex transIndex =
+        updateCreditStop stopIndex \stop -> stop
+            { transactions = fromMaybe stop.transactions
+                $ Array.deleteAt transIndex stop.transactions
+            }
+    deleteCreditStop :: forall m_. MonadState State m_ => Int -> m_ Unit
+    deleteCreditStop index =
+        H.modify_ \st -> st
+            { storeCreditStops =
+                fromMaybe st.storeCreditStops
+                    $ Array.deleteAt index st.storeCreditStops
+            }
 
 
 -- | Render the Add a Trip form.
@@ -524,6 +771,10 @@ render st =
         ]
         <> Array.mapWithIndex (renderTripStop st.accounts st.errors) st.stops
         <> [ button "Add Stop" HP.ButtonButton (H.ClassName "primary") AddStop
+           ]
+        <> Array.mapWithIndex (renderStoreCreditStop st.accounts st.storeAccounts st.errors)
+            st.storeCreditStops
+        <> [ button "Add Store Credit Stop" HP.ButtonButton (H.ClassName "primary") AddCreditStop
            , submitButton "Submit Trip"
            , renderEntryOutOfBalance st
            ]
@@ -554,6 +805,9 @@ renderEntryOutOfBalance st =
     outOfBalance =
             fromMaybe (Decimal.fromInt 0) (entryCashSpent st)
                 - transactionTotal
+
+
+-- Trip Stops
 
 -- | Render the fieldset for a TripStop.
 renderTripStop :: forall m
@@ -663,7 +917,7 @@ renderTransactionTable accounts formErrors stopIndex stop@{ stopCount, stopTotal
             ]
 
 
--- | Render the form row for a
+-- | Render the form row for a Transaction.
 -- | TODO: Highlight errors & render another row below w/ messages.
 renderTransaction :: forall m
     . SelectComponent m
@@ -718,9 +972,177 @@ renderTransaction accounts formErrors stopCount stopIndex transactionIndex trans
     mkAction :: forall a. (Int -> Int -> a) -> a
     mkAction action =
         action stopIndex transactionIndex
-    centeredCell :: forall p i. Array (HH.HTML p i) -> HH.HTML p i
-    centeredCell =
-        HH.td [ HP.class_ $ H.ClassName "align-center" ]
+
+-- | Build a table cell with centered content.
+centeredCell :: forall p i. Array (HH.HTML p i) -> HH.HTML p i
+centeredCell =
+    HH.td [ HP.class_ $ H.ClassName "align-center" ]
+
+
+-- Store Credit Stops
+
+-- | Render the fieldset for a StoreCreditStop.
+renderStoreCreditStop :: forall m
+    . SelectComponent m
+   => PreventDefaultEnter m
+   => Array AccountData
+   -> Array TripStoreAccount
+   -> V.FormErrors
+   -> Int
+   -> StoreCreditStop
+   -> H.ComponentHTML Action ChildSlots m
+renderStoreCreditStop accounts storeAccounts formErrors stopIndex creditStop =
+    HH.fieldset_
+        [ HH.legend_ [ HH.text stopLabel ]
+        , storeSelect
+        , dollarInput "Total Spent" creditStop.stopTotal (CreditInputTotal stopIndex)
+            (errors "total") "The amount spent at the store."
+        , renderCreditTransactionTable accounts formErrors stopIndex creditStop
+        , button "Remove Stop" HP.ButtonButton (H.ClassName "danger")
+            (RemoveCreditStop stopIndex)
+        ]
+  where
+    errors :: String -> Array String
+    errors field =
+        V.getFieldErrors ("store-credit-stop-" <> show stopIndex <> "-" <> field)
+            formErrors
+    stopLabel :: String
+    stopLabel = case creditStop.storeAccount of
+        Nothing ->
+            "Store Credit Stop"
+        Just (TripStoreAccount storeAcc) ->
+            "Store Credit Stop: " <> storeAcc.name
+    storeSelect :: forall p. HH.HTML p Action
+    storeSelect =
+        labelWrapper "Store" (errors "store-account") "The store purchases were made at."
+            $ HH.select
+                [ HP.required true
+                , HP.autofocus true
+                , HE.onValueChange $ Just <<< CreditInputStore stopIndex
+                , HP.ref $ creditStopAccountFieldRef stopIndex
+                ]
+            $ map
+                (\tsa@(TripStoreAccount acc) ->
+                    HH.option
+                        [ HP.value $ show acc.id
+                        , HP.selected $ creditStop.storeAccount == Just tsa
+                        ]
+                        [ HH.text acc.name ]
+                )
+                storeAccounts
+
+creditStopAccountFieldRef :: Int -> H.RefLabel
+creditStopAccountFieldRef stopIndex =
+    H.RefLabel
+        $ "__newtrip_creditstop_account_" <> show stopIndex
+
+renderCreditTransactionTable :: forall m
+    . SelectComponent m
+   => PreventDefaultEnter m
+   => Array AccountData
+   -> V.FormErrors
+   -> Int
+   -> StoreCreditStop
+   -> H.ComponentHTML Action ChildSlots m
+renderCreditTransactionTable accounts formErrors stopIndex stop@{ stopCount, stopTotal, transactions } =
+  let
+    transactionTotal =
+          creditStopTransactionTotal stop
+    outOfBalance =
+        fromMaybe (Decimal.fromInt 0) (toDecimal stopTotal) - transactionTotal
+    balanceable =
+        toDecimal stopTotal `notElem` [ Nothing, Just $ Decimal.fromInt 0 ]
+            || transactionTotal /= Decimal.fromInt 0
+   in
+    HH.table_
+        [ HH.thead_
+            [ HH.th_ [ HH.text "Account" ]
+            , HH.th_ [ HH.text "Details" ]
+            , HH.th_ [ HH.text "Cost" ]
+            , HH.th_ [ HH.text "Tax %" ]
+            , HH.th_ [ HH.text "Total Cost" ]
+            , HH.th_ []
+            ]
+        , HH.tbody_
+        $ Array.mapWithIndex (renderCreditTransaction accounts formErrors stopCount stopIndex)
+            transactions
+        , HH.tfoot_
+            [ HH.tr_ [ addRowsCell ]
+            , HH.tr_
+                [ HH.th [ HP.colSpan 4 ] [ HH.text "Total:" ]
+                , HH.td [ HP.colSpan 2 ] [ HH.text $ "$" <> Decimal.toFixed 2 transactionTotal ]
+                ]
+            , HH.tr [ HP.classes $ outOfBalanceClass balanceable outOfBalance ]
+                [ HH.th [ HP.colSpan 4 ] [ HH.text "Out of Balance:" ]
+                , HH.td [ HP.colSpan 2 ] [ HH.text $ "$" <> Decimal.toFixed 2 outOfBalance ]
+                ]
+            ]
+        ]
+  where
+    addRowsCell :: forall p. HH.HTML p Action
+    addRowsCell =
+        HH.td [ HP.colSpan 6 ]
+            [ HH.small_
+                [ HH.a
+                    [ HP.href "#"
+                    , HP.title "Add Rows"
+                    , HE.onClick $ Just <<< CreditStopAddRows stopIndex
+                    ]
+                    [ HH.text "Add Rows" ]
+                ]
+            ]
+
+-- | Render the form row for a StoreCreditTransaction.
+-- | TODO: Highlight errors & render another row below w/ messages.
+renderCreditTransaction :: forall m
+    . SelectComponent m
+   => PreventDefaultEnter m
+   => Array AccountData
+   -> V.FormErrors
+   -> StopCount
+   -> Int
+   -> Int
+   -> StoreCreditTransaction
+   -> H.ComponentHTML Action ChildSlots m
+renderCreditTransaction accounts formErrors stopCount stopIndex transactionIndex transaction =
+    HH.tr_ $ map centeredCell
+        [ [ HH.slot _accountSelect (Tuple stopCount transaction.transactionCount)
+            AccountSelect.component accounts
+            $ Just <<< CreditTransactionHandleAccount stopIndex transactionIndex
+          ]
+        , [ tableInput "memo" transaction.memo
+            (mkAction CreditTransactionInputMemo)
+            (mkAction CreditTransactionInputEnter)
+            false
+          ]
+        , [ tableInput "item-price" transaction.amount
+            (mkAction CreditTransactionInputAmount)
+            (mkAction CreditTransactionInputEnter)
+            false
+          ]
+        , [ tableAmountInput "tax-rate" transaction.tax
+                (mkAction CreditTransactionInputTax)
+                (mkAction CreditTransactionInputEnter)
+                false
+          ]
+        , [ tableAmountInput "item-total" transaction.total
+                (mkAction CreditTransactionInputTotal)
+                (mkAction CreditTransactionInputEnter)
+                false
+          ]
+        , [ HH.a
+                [ HE.onClick $ Just <<< mkAction CreditTransactionClickRemove
+                , HP.href "#"
+                , HP.title "Delete Row"
+                , HP.class_ $ H.ClassName "danger"
+                ]
+                [ HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [] ]
+          ]
+        ]
+  where
+    mkAction :: forall a. (Int -> Int -> a) -> a
+    mkAction action =
+        action stopIndex transactionIndex
 
 
 -- Inputs
