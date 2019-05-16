@@ -6,7 +6,6 @@ TODO:
       returned
     * Form validation
     * Form submission
-    * Turn <a href="#"> "Add Rows" links into buttons styled like links
     * Use custom date picker? https://github.com/slamdata/purescript-halogen-datepicker
 -}
 module Pages.NewTrip
@@ -39,7 +38,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Web.Event.Event as E
-import Web.UIEvent.MouseEvent as ME
 import Web.UIEvent.KeyboardEvent as KE
 import Web.UIEvent.KeyboardEvent.EventTypes as KET
 
@@ -47,7 +45,6 @@ import AccountSelect as AccountSelect
 import App
     ( class PreventDefaultSubmit, preventSubmit
     , class PreventDefaultEnter, preventEnter
-    , class PreventDefaultClick, preventClick
     , class LogToConsole, logShow
     , class DateTime, parseDate, now
     , class FocusElement, focusElement
@@ -69,7 +66,6 @@ component :: forall q i o m
     . LogToConsole m
    => PreventDefaultSubmit m
    => PreventDefaultEnter m
-   => PreventDefaultClick m
    => DateTime m
    => Server m
    => FocusElement m
@@ -315,26 +311,26 @@ data Action
     -- Trip Stop Actions
     | StopInputName Int String
     | StopInputTotal Int String
-    | StopAddRows Int ME.MouseEvent
+    | StopAddRows Int
     | TransactionHandleAccount Int Int AccountSelect.Message
     | TransactionInputMemo Int Int String
     | TransactionInputAmount Int Int String
     | TransactionInputTax Int Int String
     | TransactionInputTotal Int Int String
     | TransactionCheckReturn Int Int Boolean
-    | TransactionClickRemove Int Int ME.MouseEvent
+    | TransactionClickRemove Int Int
     | TransactionInputEnter Int Int KE.KeyboardEvent
     -- Store Credit Stop Actions
     | RemoveCreditStop Int
     | CreditInputStore Int String
     | CreditInputTotal Int String
-    | CreditStopAddRows Int ME.MouseEvent
+    | CreditStopAddRows Int
     | CreditTransactionHandleAccount Int Int AccountSelect.Message
     | CreditTransactionInputMemo Int Int String
     | CreditTransactionInputAmount Int Int String
     | CreditTransactionInputTax Int Int String
     | CreditTransactionInputTotal Int Int String
-    | CreditTransactionClickRemove Int Int ME.MouseEvent
+    | CreditTransactionClickRemove Int Int
     | CreditTransactionInputEnter Int Int KE.KeyboardEvent
 
 -- | Initialize, update, & submit the form.
@@ -342,7 +338,6 @@ eval :: forall m o
     . LogToConsole m
    => PreventDefaultSubmit m
    => PreventDefaultEnter m
-   => PreventDefaultClick m
    => DateTime m
    => Server m
    => FocusElement m
@@ -405,9 +400,8 @@ eval = case _ of
         updateStop index (_ { name = Just str })
     StopInputTotal index str ->
         updateStop index (_ { stopTotal = Just str })
-    StopAddRows index ev -> do
+    StopAddRows index ->
         addRowsToStop index 3
-        preventClick ev
     TransactionHandleAccount stopIndex transIndex msg -> case msg of
         AccountSelect.Selected acc ->
             updateTransaction stopIndex transIndex (_ { account = Just acc })
@@ -428,9 +422,8 @@ eval = case _ of
         clearAmountAndTax stopIndex transIndex
     TransactionCheckReturn stopIndex transIndex val ->
         updateTransaction stopIndex transIndex (_ { isReturn = val })
-    TransactionClickRemove stopIndex transIndex ev -> do
+    TransactionClickRemove stopIndex transIndex ->
         deleteTransaction stopIndex transIndex
-        preventClick ev
     TransactionInputEnter stopIndex transIndex ev ->
         preventEnter ev *> focusNextTransaction stopIndex transIndex
     RemoveCreditStop index ->
@@ -449,9 +442,8 @@ eval = case _ of
                 pure unit
     CreditInputTotal index str ->
         updateCreditStop index (_ { stopTotal = Just str })
-    CreditStopAddRows index ev -> do
+    CreditStopAddRows index ->
         addRowsToCreditStop index 3
-        preventClick ev
     CreditTransactionHandleAccount stopIndex transIndex msg -> case msg of
         AccountSelect.Selected acc ->
             updateCreditTransaction stopIndex transIndex (_ { account = Just acc })
@@ -470,9 +462,8 @@ eval = case _ of
     CreditTransactionInputTotal stopIndex transIndex str -> do
         updateCreditTransaction stopIndex transIndex (_ { total = Just str })
         clearCreditAmountAndTax stopIndex transIndex
-    CreditTransactionClickRemove stopIndex transIndex ev -> do
+    CreditTransactionClickRemove stopIndex transIndex ->
         deleteCreditTransaction stopIndex transIndex
-        preventClick ev
     CreditTransactionInputEnter stopIndex transIndex ev ->
         preventEnter ev *> focusNextCreditTransaction stopIndex transIndex
 
@@ -907,12 +898,8 @@ renderTransactionTable accounts formErrors stopIndex stop@{ stopCount, stopTotal
     addRowsCell =
         HH.td [ HP.colSpan 7 ]
             [ HH.small_
-                [ HH.a
-                    [ HP.href "#"
-                    , HP.title "Add Rows"
-                    , HE.onClick $ Just <<< StopAddRows stopIndex
-                    ]
-                    [ HH.text "Add Rows" ]
+                [ button "Add Rows" HP.ButtonButton (H.ClassName "link")
+                    (StopAddRows stopIndex)
                 ]
             ]
 
@@ -959,13 +946,9 @@ renderTransaction accounts formErrors stopCount stopIndex transactionIndex trans
                 (mkAction TransactionCheckReturn)
                 (mkAction TransactionInputEnter)
           ]
-        , [ HH.a
-                [ HE.onClick $ Just <<< mkAction TransactionClickRemove
-                , HP.href "#"
-                , HP.title "Delete Row"
-                , HP.class_ $ H.ClassName "danger"
-                ]
-                [ HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [] ]
+        , [ htmlButton (HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [])
+                HP.ButtonButton (H.ClassName "link danger")
+                (mkAction TransactionClickRemove)
           ]
         ]
   where
@@ -1083,12 +1066,8 @@ renderCreditTransactionTable accounts formErrors stopIndex stop@{ stopCount, sto
     addRowsCell =
         HH.td [ HP.colSpan 6 ]
             [ HH.small_
-                [ HH.a
-                    [ HP.href "#"
-                    , HP.title "Add Rows"
-                    , HE.onClick $ Just <<< CreditStopAddRows stopIndex
-                    ]
-                    [ HH.text "Add Rows" ]
+                [ button "Add Rows" HP.ButtonButton (H.ClassName "link")
+                    (CreditStopAddRows stopIndex)
                 ]
             ]
 
@@ -1130,13 +1109,9 @@ renderCreditTransaction accounts formErrors stopCount stopIndex transactionIndex
                 (mkAction CreditTransactionInputEnter)
                 false
           ]
-        , [ HH.a
-                [ HE.onClick $ Just <<< mkAction CreditTransactionClickRemove
-                , HP.href "#"
-                , HP.title "Delete Row"
-                , HP.class_ $ H.ClassName "danger"
-                ]
-                [ HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [] ]
+        , [ htmlButton (HH.i [ HP.class_ $ H.ClassName "fas fa-times" ] [])
+                HP.ButtonButton (H.ClassName "danger link")
+                (mkAction CreditTransactionClickRemove)
           ]
         ]
   where
@@ -1219,6 +1194,16 @@ outOfBalanceClass balanceable outOfBalance =
         if outOfBalance == Decimal.fromInt 0
             then "is-balanced"
             else "is-out-of-balance"
+
+-- | Render a button with some HTML content.
+-- | TODO: Might be useful to move this into the forms module, or refactor the
+-- | Forms.button function.
+htmlButton :: forall p i. HH.HTML p i -> HP.ButtonType -> H.ClassName -> i -> HH.HTML p i
+htmlButton content type_ class_ action =
+    HH.button
+        [ HE.onClick $ const $ Just action, HP.class_ class_, HP.type_ type_ ]
+            [ content ]
+
 
 -- | Render a disabled input for the Cash Spent, calculated from the Trip
 -- | Advance and the Cash Returned.
