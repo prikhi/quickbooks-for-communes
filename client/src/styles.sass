@@ -66,7 +66,7 @@ small
 
 
 /* Link & Button Styles */
-a
+a, button.link
   color: $teal
   transition: color 0.2s ease-in, border 0.2s ease-in
   text-decoration: none
@@ -97,6 +97,16 @@ a.link-button
   display: inline-block
   text-decoration: none
 
+/* Reset styling for buttons that should be styled like links */
+button.link
+  font-size: inherit
+  background-color: transparent
+  border: none
+  border-radius: 0
+  padding: 0
+  margin: 0
+  outline: none
+
 button.primary, a.link-button
   color: $button-text
   background-color: $button-primary
@@ -108,6 +118,13 @@ button.danger
   background-color: $button-danger
   &:hover, &:focus
     background-color: $button-danger-hover
+
+button.danger.link
+  color: $button-danger
+  background-color: transparent
+  &:hover, &:focus
+    color: $button-danger-hover
+    background-color: transparent
 
 
 /** Tables **/
