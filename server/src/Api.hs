@@ -19,6 +19,7 @@ module Api
     , TripStoreAccount(..)
     , AccountData(..)
     , NewCompany(..)
+    , NewTrip(..)
     -- * QuickBooks Types
     , QuickBooksAPI
     )
@@ -33,11 +34,13 @@ import qualified Data.Set                      as Set
 import           Data.Text                      ( Text
                                                 , pack
                                                 )
+import           Data.Time                      ( UTCTime )
 import           Database.Persist.Sql           ( fromSqlKey )
 import           DB.Fields                      ( AccountTypeField )
 import           DB.Schema                      ( CompanyId
                                                 , AccountId
                                                 , StoreAccountId
+                                                , TripId
                                                 )
 import           GHC.Generics                   ( Generic )
 import           QuickBooks.WebConnector        ( QWCConfig
@@ -80,6 +83,7 @@ type FrontendAPI =
     :<|> "store-accounts" :> Capture "companyId" CompanyId :> Get '[JSON] [TripStoreAccount]
     :<|> "accounts" :> Capture "companyid" CompanyId :> Get '[JSON] [AccountData]
     :<|> "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
+    :<|> "new-trip" :> ReqBody '[JSON] NewTrip :> Post '[JSON] TripId
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
 
 
@@ -199,6 +203,83 @@ instance V.AppValidation NewCompany where
             <*> V.isNonEmpty "username" ncUsername
             <*> V.isNonEmpty "password" ncPassword
 
+
+-- | Post data for creating a new `Trip`.
+-- TODO: Cents instead of Rationals
+data NewTrip
+    = NewTrip
+        { ntDate :: UTCTime
+        -- ^ Trip Date
+        , ntName :: Text
+        -- ^ Tripper Name
+        , ntNumber :: Text
+        -- ^ Trip Advance Number
+        , ntAdvance :: Rational
+        -- ^ Trip Advance Amount
+        , ntReturned :: Rational
+        -- ^ Cash Returned
+        , ntStops :: [NewTripStop]
+        -- ^ Trip Stops
+        , ntCreditStops :: [NewTripCreditStop]
+        -- ^ Store Credit Stops
+        } deriving (Read, Show, Generic)
+
+instance FromJSON NewTrip
+
+data NewTripStop
+    = NewTripStop
+        { ntsName :: Text
+        -- ^ Stop Name
+        , ntsTransactins :: [NewTripTransaction]
+        -- ^ Stop Transactions
+        } deriving (Read, Show, Generic)
+
+instance FromJSON NewTripStop
+
+data NewTripTransaction
+    = NewTripTransaction
+        { nttAccount :: AccountId
+        -- ^ Transaction Account
+        , nttMemo :: Text
+        -- ^ Item Description
+        , nttAmount :: Maybe Rational
+        -- ^ Purchase Price
+        , nttTax :: Maybe Rational
+        -- ^ Tax as Decimal
+        , nttTotal :: Rational
+        -- ^ Total Cost
+        , nttIsReturn :: Bool
+        -- ^ Returning Item?
+        } deriving (Show, Read, Generic)
+
+instance FromJSON NewTripTransaction
+
+
+data NewTripCreditStop
+    = NewTripCreditStop
+        { ntcsStore :: StoreAccountId
+        -- ^ Store Account
+        , ntcsTransactions :: [NewTripCreditTransactions]
+        -- ^ Credit Transactions
+        } deriving (Show, Read, Generic)
+
+instance FromJSON NewTripCreditStop
+
+data NewTripCreditTransactions
+    = NewTripCreditTransactions
+        { ntctAccount :: AccountId
+        -- ^ Transaction Account
+        , ntctMemo :: Text
+        -- ^ Item Details
+        , ntctAmount :: Maybe Rational
+        -- ^ Item Price
+        , ntctTax :: Maybe Rational
+        -- ^ Tax as Decimal
+        , ntctTotal :: Rational
+        -- ^ Total Cost
+        } deriving (Show, Read, Generic)
+
+instance FromJSON NewTripCreditTransactions
 
 
 -- QuickBooks

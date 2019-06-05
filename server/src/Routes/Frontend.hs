@@ -22,6 +22,7 @@ import           Api                            ( FrontendAPI
                                                 , TripStoreAccount(..)
                                                 , AccountData(..)
                                                 , NewCompany(..)
+                                                , NewTrip(..)
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( MonadThrow
@@ -56,6 +57,7 @@ import           DB.Schema                      ( Company(..)
                                                 , Account(..)
                                                 , AccountId
                                                 , StoreAccount(..)
+                                                , TripId
                                                 , Unique(..)
                                                 , EntityField(..)
                                                 )
@@ -85,6 +87,7 @@ routes =
         :<|> tripStoreAccounts
         :<|> accounts
         :<|> newCompany
+        :<|> newTrip
         :<|> generateQwcFile
 
 
@@ -247,6 +250,11 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
     userError_ = V.validate "username"
                             "A company is already using this username."
                             isNothing
+
+
+-- | Validate & create a new `Trip` along with it's associated models.
+newTrip :: (SqlDB m, MonadThrow m) => NewTrip -> m TripId
+newTrip = V.validateOrThrow >=> \NewTrip {..} -> error "TODO"
 
 
 -- Get a QWC File
