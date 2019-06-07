@@ -70,7 +70,7 @@ instance FromXML a => FromXML (SOAPRequest a) where
     fromXML = matchName (soapName "Envelope") $ find (soapName "Body") $ do
         el <- getElement
         case elementNodes el of
-            [NodeElement bodyContents] -> descend fromXML bodyContents
+            [NodeElement bodyContents] -> SOAPRequest <$> descend fromXML bodyContents
             _ -> throwParsingError $ UnexpectedChildNodes "single element"
 
 soapName :: Text -> Name
