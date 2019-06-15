@@ -165,7 +165,7 @@ evalAction = case _ of
                 let a@(AccountData account) = item.account
                 H.modify_ $ _ { selected = Just a, value = account.name }
                 H.raise $ Selected a
-            void $ H.query _select unit Select.close
+            void $ H.query _select unit $ H.tell Select.Close
         Select.InputValueChanged value -> do
             -- Set the new input value & filter the item list using the new
             -- value.
@@ -173,8 +173,8 @@ evalAction = case _ of
                 { value = value
                 , filteredItems = filterAccounts value state.items
                 }
-            void $ H.query _select unit $ Select.highlight 0
-            void $ H.query _select unit Select.open
+            void $ H.query _select unit $ H.tell $ Select.Highlight 0
+            void $ H.query _select unit $ H.tell Select.Open
         Select.VisibilityChanged _ ->
             pure unit
         Select.Emit action ->
@@ -188,10 +188,10 @@ evalAction = case _ of
             isBackspace = KE.key event == "Backspace"
         -- Select the highlighted item when pressing Tab with the dropdown open.
         when (isTabKey && isOpen) $
-            void $ H.query _select unit Select.select
+            void $ H.query _select unit $ H.tell Select.Select
         -- Open the dropdown when the arrow keys are pressed.
         when isNavKey $
-            void $ H.query _select unit Select.open
+            void $ H.query _select unit $ H.tell Select.Open
         -- When Enter is pressed & the dropdown is open, prevent the default
         -- action so the form is not submitted. If the dropdown is closed,
         -- raise a message for the parent component.
@@ -201,7 +201,7 @@ evalAction = case _ of
                 else H.raise $ EnterKeyDownWhileClosed event
         -- Close the dropdown without selecting an Account when Esc is pressed.
         when isEscKey $
-            void $ H.query _select unit Select.close
+            void $ H.query _select unit $ H.tell Select.Close
         -- When an item is selected & backspace is pressed, clear the selection
         -- & make sure the dropdown is open.
         st <- H.get
@@ -211,7 +211,7 @@ evalAction = case _ of
                 , value = ""
                 , filteredItems = map pureItem state.items
                 }
-            void $ H.query _select unit Select.open
+            void $ H.query _select unit $ H.tell Select.Open
             H.raise Cleared
   where
     -- Return only the Accounts that match the search string.
@@ -245,7 +245,7 @@ evalQuery :: forall o m a. Query a -> H.HalogenM State Action ChildSlots o m (Ma
 evalQuery = case _ of
     Focus next -> do
         -- Forward focus requests to the NSelect child component.
-        void $ H.query _select unit Select.focus
+        void $ H.query _select unit $ H.tell Select.Focus
         pure $ Just next
     Select accountId next -> do
         items <- H.gets (_.items)
@@ -255,8 +255,8 @@ evalQuery = case _ of
             Just accountIndex -> do
                 st <- H.modify \st -> st
                     { filteredItems = map pureItem st.items }
-                void $ H.query _select unit $ Select.highlight accountIndex
-                void $ H.query _select unit Select.select
+                void $ H.query _select unit $ H.tell $ Select.Highlight accountIndex
+                void $ H.query _select unit $ H.tell Select.Select
         pure $ Just next
 
 
