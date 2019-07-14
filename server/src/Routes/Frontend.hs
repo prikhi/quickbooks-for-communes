@@ -23,6 +23,10 @@ import           Api                            ( FrontendAPI
                                                 , AccountData(..)
                                                 , NewCompany(..)
                                                 , NewTrip(..)
+                                                , NewTripStop(..)
+                                                , NewTripTransaction(..)
+                                                , NewTripCreditStop(..)
+                                                , NewTripCreditTransaction(..)
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( MonadThrow
@@ -44,6 +48,7 @@ import           Database.Persist.Sql           ( (==.)
                                                 , Entity(..)
                                                 , SelectOpt(..)
                                                 , selectList
+                                                , insert
                                                 , insert_
                                                 , get
                                                 , getBy
@@ -52,12 +57,19 @@ import           Database.Persist.Sql           ( (==.)
                                                 , upsertBy
                                                 , deleteWhere
                                                 )
+import           DB.Fields                      ( EntryStatus(..) )
 import           DB.Schema                      ( Company(..)
                                                 , CompanyId
                                                 , Account(..)
                                                 , AccountId
                                                 , StoreAccount(..)
+                                                , StoreAccountId
+                                                , Trip(..)
                                                 , TripId
+                                                , TripStop(..)
+                                                , TripStopId
+                                                , TripTransaction(..)
+                                                , StoreCreditTransaction(..)
                                                 , Unique(..)
                                                 , EntityField(..)
                                                 )
@@ -72,6 +84,7 @@ import           Servant.Server                 ( ServerT
 import           Types                          ( AppEnv(..)
                                                 , AppM(..)
                                                 , SqlDB(..)
+                                                , SqlM
                                                 , HashPassword(..)
                                                 )
 import           Utils                          ( traverseWithIndex )
@@ -251,8 +264,108 @@ newCompany = V.validateOrThrow >=> \NewCompany {..} -> do
 
 
 -- | Validate & create a new `Trip` along with it's associated models.
-newTrip :: (SqlDB m, MonadThrow m) => NewTrip -> m TripId
-newTrip = V.validateOrThrow >=> \NewTrip {..} -> error "TODO"
+newTrip :: (SqlDB m, MonadThrow m) => CompanyId -> NewTrip -> m TripId
+newTrip companyId = V.validateOrThrow >=> \NewTrip {..} -> runDB $ do
+    get companyId >>= \case
+        Nothing -> noCompanyError
+        Just _  -> return ()
+    validAccounts <-
+        map entityKey <$> selectList [AccountCompany ==. companyId] []
+    validStores <-
+        map entityKey <$> selectList [StoreAccountCompany ==. companyId] []
+    let transactions = concatMap ntsTransactions ntStops
+        databaseValidation =
+            ()
+                <$ traverseWithIndex (validateTransaction validAccounts)
+                                     transactions
+                <* traverseWithIndex
+                       (validateCreditStop validStores validAccounts)
+                       ntCreditStops
+    V.whenValid databaseValidation $ \_ -> do
+        tripId <- insert Trip { tripDate         = ntDate
+                              , tripAuthor       = ntName
+                              , tripNumber       = ntNumber
+                              , tripCashAdvance  = ntAdvance
+                              , tripCashReturned = ntReturned
+                              , tripStatus       = Unapproved
+                              , tripComment      = ""
+                              , tripCompany      = companyId
+                              }
+        mapM_ (insertStop tripId)       ntStops
+        mapM_ (insertCreditStop tripId) ntCreditStops
+        return tripId
+  where
+    noCompanyError =
+        V.validationError $ V.singleton "company" "Company does not exist."
+    validateTransaction
+        :: [AccountId]
+        -> Int
+        -> NewTripTransaction
+        -> V.Validation V.FormErrors AccountId
+    validateTransaction validAccs index trans =
+        V.mapErrors (V.prependIndexedFieldName index "transaction")
+            $ V.validate
+                  "account"
+                  "Could not find this Account in the selected Company."
+                  (`elem` validAccs)
+            $ nttAccount trans
+    validateCreditStop
+        :: [StoreAccountId]
+        -> [AccountId]
+        -> Int
+        -> NewTripCreditStop
+        -> V.Validation V.FormErrors ()
+    validateCreditStop validStores validAccs index stop =
+        V.mapErrors (V.prependIndexedFieldName index "store-credit-stop")
+            $  ()
+            <$ V.validate
+                   "store-account"
+                   "Could not find this Store in the selected Company."
+                   (`elem` validStores)
+                   (ntcsStore stop)
+            <* traverseWithIndex (validateCreditTransaction validAccs)
+                                 (ntcsTransactions stop)
+    validateCreditTransaction
+        :: [AccountId]
+        -> Int
+        -> NewTripCreditTransaction
+        -> V.Validation V.FormErrors AccountId
+    validateCreditTransaction validAccs index trans =
+        V.mapErrors (V.prependIndexedFieldName index "transaction")
+            $ V.validate
+                  "account"
+                  "Could not find this Account in the selected Company."
+                  (`elem` validAccs)
+            $ ntctAccount trans
+    insertStop :: SqlDB n => TripId -> NewTripStop -> SqlM n ()
+    insertStop tripId NewTripStop {..} = do
+        stopId <- insert TripStop { tripStopTrip = tripId
+                                  , tripStopName = ntsName
+                                  }
+        mapM_ (insertTransaction stopId) ntsTransactions
+    insertTransaction
+        :: SqlDB n => TripStopId -> NewTripTransaction -> SqlM n ()
+    insertTransaction stopId NewTripTransaction {..} = insert_ TripTransaction
+        { tripTransactionStop     = stopId
+        , tripTransactionAccount  = nttAccount
+        , tripTransactionMemo     = nttMemo
+        , tripTransactionAmount   = nttAmount
+        , tripTransactionTax      = nttTax
+        , tripTransactionTotal    = nttTotal
+        , tripTransactionIsReturn = nttIsReturn
+        }
+    insertCreditStop :: SqlDB n => TripId -> NewTripCreditStop -> SqlM n ()
+    insertCreditStop tripId NewTripCreditStop {..} =
+        forM_ ntcsTransactions $ \NewTripCreditTransaction {..} -> insert_
+            StoreCreditTransaction { storeCreditTransactionTrip    = tripId
+                                   , storeCreditTransactionStore   = ntcsStore
+                                   , storeCreditTransactionAccount = ntctAccount
+                                   , storeCreditTransactionMemo    = ntctMemo
+                                   , storeCreditTransactionAmount  = ntctAmount
+                                   , storeCreditTransactionTax     = ntctTax
+                                   , storeCreditTransactionTotal   = ntctTotal
+                                   }
+
 
 
 -- Get a QWC File
