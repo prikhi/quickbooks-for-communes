@@ -20,6 +20,10 @@ module Api
     , AccountData(..)
     , NewCompany(..)
     , NewTrip(..)
+    , NewTripStop(..)
+    , NewTripTransaction(..)
+    , NewTripCreditStop(..)
+    , NewTripCreditTransaction(..)
     -- * QuickBooks Types
     , QuickBooksAPI
     )
@@ -86,7 +90,7 @@ type FrontendAPI =
     :<|> "store-accounts" :> Capture "companyId" CompanyId :> Get '[JSON] [TripStoreAccount]
     :<|> "accounts" :> Capture "companyid" CompanyId :> Get '[JSON] [AccountData]
     :<|> "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
-    :<|> "new-trip" :> ReqBody '[JSON] NewTrip :> Post '[JSON] TripId
+    :<|> "new-trip" :> Capture "companyId" CompanyId :> ReqBody '[JSON] NewTrip :> Post '[JSON] TripId
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
 
 
@@ -228,6 +232,30 @@ data NewTrip
 
 instance FromJSON NewTrip
 
+instance V.AppValidation NewTrip where
+    validator NewTrip {..} =
+        let transactionTotal =
+                foldl (\acc stop -> acc + sumTransactions stop) 0 ntStops
+        in  NewTrip ntDate
+                <$> V.isNonEmpty "name" ntName
+                <*> V.isNonEmpty "number" ntNumber
+                <*> V.validate "advance" "Must be greater than 0." (> 0) ntAdvance
+                <*> V.validate "return" "Must be greater than 0." (> 0) ntReturned
+                <*  V.validate "return" "Cannot be greater than advance."
+                        (<= ntAdvance) ntReturned
+                <*  V.validate "" "Trip is out of balance."
+                        (== (ntAdvance - ntReturned)) transactionTotal
+                <*> V.traverseWithFieldPrefix "trip-stop" ntStops
+                <*> pure ntCreditStops
+        where
+            sumTransactions :: NewTripStop -> Cents
+            sumTransactions stop =
+                foldl (\acc trans ->
+                        let operator = if nttIsReturn trans then (-) else (+)
+                        in  acc `operator` nttTotal trans
+                    ) 0 $ ntsTransactions stop
+
+
 data NewTripStop
     = NewTripStop
         { ntsName :: Text
@@ -237,6 +265,13 @@ data NewTripStop
         } deriving (Read, Show, Generic)
 
 instance FromJSON NewTripStop
+
+instance V.AppValidation NewTripStop where
+    validator NewTripStop {..} =
+        NewTripStop
+            <$> V.isNonEmpty "name" ntsName
+            <*> pure ntsTransactions
+
 
 data NewTripTransaction
     = NewTripTransaction
