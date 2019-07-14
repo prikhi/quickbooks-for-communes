@@ -12,6 +12,7 @@ import Data.Array as Array
 import Data.Bifunctor (lmap)
 import Data.Decimal as Decimal
 import Data.Either (Either(..))
+import Data.FoldableWithIndex (foldlWithIndex)
 import Data.Map (Map)
 import Data.Map as M
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -67,6 +68,16 @@ singleError :: forall a. String -> String -> V.V FormErrors a
 singleError field =
     singleton field >>> V.invalid
 
+-- | Map over the FormErrors of a Validation.
+mapErrors :: forall a. (FormErrors -> FormErrors) -> V.V FormErrors a -> V.V FormErrors a
+mapErrors = lmap
+
+-- | Transform all Field Names for the current Errors.
+mapErrorFields :: forall a. (String -> String) -> V.V FormErrors a -> V.V FormErrors a
+mapErrorFields keyModifier = mapErrors $ foldlWithIndex
+    (\key newMap value -> M.insert (keyModifier key) value newMap)
+    M.empty
+
 
 -- | Ensure a Maybe String has a non-empty value present.
 validateNonEmpty :: String -> Validation (Maybe String) String
@@ -74,6 +85,12 @@ validateNonEmpty field = case _ of
     Nothing -> singleError field "A value is required."
     Just "" -> singleError field "A value is required."
     Just s  -> pure s
+
+-- | Ensure a Maybe has a value present.
+just :: forall a. String -> Validation (Maybe a) a
+just field = case _ of
+    Nothing -> singleError field "A value is required."
+    Just v  -> pure v
 
 -- | Ensure the string parses into a decimal with a maximum of two places.
 cents :: String -> Validation (Maybe String) Cents
