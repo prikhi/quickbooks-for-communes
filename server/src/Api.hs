@@ -36,7 +36,10 @@ import           Data.Text                      ( Text
                                                 )
 import           Data.Time                      ( UTCTime )
 import           Database.Persist.Sql           ( fromSqlKey )
-import           DB.Fields                      ( AccountTypeField )
+import           DB.Fields                      ( AccountTypeField
+                                                , Cents
+                                                , Percentage
+                                                )
 import           DB.Schema                      ( CompanyId
                                                 , AccountId
                                                 , StoreAccountId
@@ -205,7 +208,6 @@ instance V.AppValidation NewCompany where
 
 
 -- | Post data for creating a new `Trip`.
--- TODO: Cents instead of Rationals
 data NewTrip
     = NewTrip
         { ntDate :: UTCTime
@@ -214,9 +216,9 @@ data NewTrip
         -- ^ Tripper Name
         , ntNumber :: Text
         -- ^ Trip Advance Number
-        , ntAdvance :: Rational
+        , ntAdvance :: Cents
         -- ^ Trip Advance Amount
-        , ntReturned :: Rational
+        , ntReturned :: Cents
         -- ^ Cash Returned
         , ntStops :: [NewTripStop]
         -- ^ Trip Stops
@@ -230,7 +232,7 @@ data NewTripStop
     = NewTripStop
         { ntsName :: Text
         -- ^ Stop Name
-        , ntsTransactins :: [NewTripTransaction]
+        , ntsTransactions :: [NewTripTransaction]
         -- ^ Stop Transactions
         } deriving (Read, Show, Generic)
 
@@ -242,11 +244,11 @@ data NewTripTransaction
         -- ^ Transaction Account
         , nttMemo :: Text
         -- ^ Item Description
-        , nttAmount :: Maybe Rational
+        , nttAmount :: Maybe Cents
         -- ^ Purchase Price
-        , nttTax :: Maybe Rational
+        , nttTax :: Maybe Percentage
         -- ^ Tax as Decimal
-        , nttTotal :: Rational
+        , nttTotal :: Cents
         -- ^ Total Cost
         , nttIsReturn :: Bool
         -- ^ Returning Item?
@@ -259,27 +261,27 @@ data NewTripCreditStop
     = NewTripCreditStop
         { ntcsStore :: StoreAccountId
         -- ^ Store Account
-        , ntcsTransactions :: [NewTripCreditTransactions]
+        , ntcsTransactions :: [NewTripCreditTransaction]
         -- ^ Credit Transactions
         } deriving (Show, Read, Generic)
 
 instance FromJSON NewTripCreditStop
 
-data NewTripCreditTransactions
-    = NewTripCreditTransactions
+data NewTripCreditTransaction
+    = NewTripCreditTransaction
         { ntctAccount :: AccountId
         -- ^ Transaction Account
         , ntctMemo :: Text
         -- ^ Item Details
-        , ntctAmount :: Maybe Rational
+        , ntctAmount :: Maybe Cents
         -- ^ Item Price
-        , ntctTax :: Maybe Rational
+        , ntctTax :: Maybe Percentage
         -- ^ Tax as Decimal
-        , ntctTotal :: Rational
+        , ntctTotal :: Cents
         -- ^ Total Cost
         } deriving (Show, Read, Generic)
 
-instance FromJSON NewTripCreditTransactions
+instance FromJSON NewTripCreditTransaction
 
 
 -- QuickBooks
