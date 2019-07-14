@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {- | Defines database field types & their Persistent instances. -}
@@ -11,14 +12,22 @@ module DB.Fields
     , AccountTypeField(..)
       -- * Entry Fields
     , EntryStatus(..)
+    , Cents(..)
+    , Percentage(..)
       -- * Generic Fields
     , UUIDField(..)
     )
 where
 
-import           Data.Aeson                     ( ToJSON(..)
+import           Data.Aeson                     ( (.=)
+                                                , (.:)
+                                                , ToJSON(..)
+                                                , FromJSON(..)
                                                 , Value(String)
+                                                , withObject
+                                                , object
                                                 )
+import           Data.Proxy                     ( Proxy(..) )
 import           Data.UUID                      ( UUID )
 import           Data.Text                      ( Text
                                                 , pack
@@ -27,7 +36,9 @@ import           Data.Text                      ( Text
 import           Database.Persist.Sql
 import           Database.Persist.TH            ( derivePersistField )
 import           GHC.Generics                   ( Generic )
+import           GHC.Natural                    ( Natural )
 import           QuickBooks.QBXML               ( AccountType(..) )
+import           Text.Read                      ( Read(readPrec) )
 
 
 -- SESSIONS
@@ -98,6 +109,61 @@ data EntryStatus
     deriving (Read, Show, Eq)
 
 $(derivePersistField "EntryStatus")
+
+
+-- | Dollar values are represented in number of Cents.
+newtype Cents
+    = Cents
+        { fromCents :: Natural }
+    deriving (Ord, Eq, Num)
+
+-- | Show using the `Natural` instance
+instance Show Cents where
+    show = show . fromCents
+
+-- | Read as `Natural` values
+instance Read Cents where
+    readPrec = Cents <$> readPrec
+
+instance PersistField Cents where
+    toPersistValue (Cents c) = toPersistValue c
+    fromPersistValue = fmap Cents <$> fromPersistValue
+
+instance PersistFieldSql Cents where
+    sqlType = const $ sqlType (Proxy :: Proxy Natural)
+
+-- | @{ "cents": \<int-value\> }@
+instance ToJSON Cents where
+    toJSON (Cents cents) = object ["cents" .= toJSON cents]
+
+instance FromJSON Cents where
+    parseJSON = withObject "Cents" $ \v -> do
+        natural <- v .: "cents"
+        return $ Cents natural
+
+
+-- | Percentage values are represented as hundredths of a Percentage.
+newtype Percentage
+    = Percentage
+        { fromPercentage :: Natural }
+    deriving (Show, Read, Ord, Eq, Num)
+
+instance PersistField Percentage where
+    toPersistValue (Percentage p) = toPersistValue p
+    fromPersistValue = fmap Percentage <$> fromPersistValue
+
+instance PersistFieldSql Percentage where
+    sqlType = const $ sqlType (Proxy :: Proxy Natural)
+
+-- | @{ "percentage": \<int-value\> }@
+instance ToJSON Percentage where
+    toJSON (Percentage p) = object ["percentage" .= toJSON p]
+
+instance FromJSON Percentage where
+    parseJSON =
+        withObject "Percentage" $ \v -> Percentage <$> (v .: "percentage")
+
+
 
 
 -- GENERIC

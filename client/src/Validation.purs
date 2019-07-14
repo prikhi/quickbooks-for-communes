@@ -10,6 +10,7 @@ import Data.Argonaut.Decode ((.:), class DecodeJson, decodeJson)
 import Data.Argonaut.Parser (jsonParser)
 import Data.Array as Array
 import Data.Bifunctor (lmap)
+import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Map (Map)
 import Data.Map as M
@@ -19,6 +20,9 @@ import Data.Tuple (Tuple(..))
 import Data.Validation.Semigroup as V
 import Foreign.Object as Object
 import Halogen as H
+
+import App (class DateTime, parseDate)
+import Fields (Cents, decimalToCents, Percentage, decimalToPercentage, UTCDate(..))
 
 
 -- Form Validation
@@ -70,6 +74,49 @@ validateNonEmpty field = case _ of
     Nothing -> singleError field "A value is required."
     Just "" -> singleError field "A value is required."
     Just s  -> pure s
+
+-- | Ensure the string parses into a decimal with a maximum of two places.
+cents :: String -> Validation (Maybe String) Cents
+cents field str = case join (map Decimal.fromString str) of
+    Nothing -> singleError field "A decimal value is required."
+    Just dec ->
+        if maxDecimalPlaces 2 dec then
+            pure $ decimalToCents dec
+        else
+            singleError field "A maximum of 2 decimal places is allowed."
+
+optionalCents :: String -> Validation (Maybe String) (Maybe Cents)
+optionalCents field str = case join (map Decimal.fromString str) of
+    Nothing -> pure Nothing
+    Just dec ->
+        if maxDecimalPlaces 2 dec then
+            pure $ Just $ decimalToCents dec
+        else
+            singleError field "A maximum of 2 decimal places is allowed."
+
+optionalPercentage :: String -> Validation (Maybe String) (Maybe Percentage)
+optionalPercentage field str = case join (map Decimal.fromString str) of
+    Nothing -> pure Nothing
+    Just dec ->
+        if maxDecimalPlaces 2 dec then
+            pure $ Just $ decimalToPercentage dec
+        else
+            singleError field "A maximum of 2 decimal places is allowed."
+
+-- | Ensure the decimal value has the given number of decimal places at most.
+maxDecimalPlaces :: Int -> Decimal.Decimal -> Boolean
+maxDecimalPlaces places decimal =
+    Just decimal == Decimal.fromString (Decimal.toFixed places decimal)
+
+
+-- | Ensure the string can parse into a Date.
+utcDate :: forall m. DateTime m => String -> String -> m (V.V FormErrors UTCDate)
+utcDate field str =
+    parseDate str >>= case _ of
+        Nothing ->
+            pure $ singleError field "A valid date is required."
+        Just date ->
+            pure $ pure $ UTCDate date
 
 toEither :: forall a. V.V FormErrors a -> Either FormErrors a
 toEither = V.toEither

@@ -50,6 +50,8 @@ import           DB.Fields                      ( UUIDField
                                                 , SessionType
                                                 , AccountTypeField
                                                 , EntryStatus
+                                                , Cents
+                                                , Percentage
                                                 )
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistLowerCase|
@@ -101,8 +103,8 @@ Trip
     date UTCTime
     author Text
     number Text
-    cashAdvance Rational
-    cashReturned Rational
+    cashAdvance Cents
+    cashReturned Cents
     status EntryStatus
     comment Text
     company CompanyId
@@ -117,9 +119,9 @@ TripTransaction
     stop TripStopId
     account AccountId
     memo Text
-    amount Rational
-    tax Rational
-    total Rational
+    amount Cents Maybe
+    tax Percentage Maybe
+    total Cents
     isReturn Bool
     deriving Show Read
 
@@ -128,9 +130,8 @@ StoreCreditTransaction
     store StoreAccountId
     account AccountId
     memo Text
-    amount Rational
-    tax Rational
-    total Rational
-    isReturn Bool
+    amount Cents Maybe
+    tax Percentage Maybe
+    total Cents
     deriving Show Read
 |]
