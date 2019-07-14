@@ -97,7 +97,7 @@ companies = runDB $ map convert <$> selectList [] [Desc CompanyName]
   where
     convert :: Entity Company -> CompanyData
     convert (Entity cId c) =
-        CompanyData {cdCompanyId = cId, cdCompanyName = companyName c}
+        CompanyData { cdCompanyId = cId, cdCompanyName = companyName c }
 
 
 -- | Update a Company's TripAdvances & StoreAccounts.
@@ -115,8 +115,7 @@ editCompany companyId = V.validateOrThrow >=> \EditCompany {..} -> runDB $ do
                     , AccountCompany ==. companyId
                     ]
                     []
-    let
-        validationTest =
+    let validationTest =
             ()
                 <$ validateTripAdvance validAccounts ecTripAdvances
                 <* traverseWithIndex (validateStoreAccount validAccounts)
@@ -129,11 +128,10 @@ editCompany companyId = V.validateOrThrow >=> \EditCompany {..} -> runDB $ do
             ]
         forM_ ecStoreAccounts $ \StoreAccountData {..} -> upsertBy
             (UniqueStoreAccount saAccount companyId)
-            (StoreAccount
-                { storeAccountName    = saName
-                , storeAccountAccount = saAccount
-                , storeAccountCompany = companyId
-                }
+            (StoreAccount { storeAccountName    = saName
+                          , storeAccountAccount = saAccount
+                          , storeAccountCompany = companyId
+                          }
             )
             [StoreAccountName =. saName]
   where
@@ -198,7 +196,7 @@ tripStoreAccounts companyId = runDB $ map convert <$> selectList
   where
     convert :: Entity StoreAccount -> TripStoreAccount
     convert (Entity saId sa) =
-        TripStoreAccount {tsaId = saId, tsaName = storeAccountName sa}
+        TripStoreAccount { tsaId = saId, tsaName = storeAccountName sa }
 
 
 -- | Fetch the Accounts for a 'Company'.

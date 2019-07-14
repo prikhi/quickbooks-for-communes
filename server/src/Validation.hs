@@ -82,7 +82,6 @@ whenValid validation onSuccess = case validation of
 validationError :: MonadThrow m => FormErrors -> m a
 validationError errs = throwM $ err422 { errBody = encode errs }
 
-
 -- | Errors out if the field's text is empty.
 isNonEmpty :: FieldName -> Text -> V.Validation FormErrors Text
 isNonEmpty field = validate field "This field is required." (/= "")
@@ -111,8 +110,8 @@ newtype FormErrors
 
 -- | Append errors by merging the sets of messages for each field.
 instance Semigroup FormErrors where
-    (FormErrors map1) <> (FormErrors map2) = FormErrors $
-        HM.unionWith (\l1 l2 -> L.nub $ l1 <> l2) map1 map2
+    (FormErrors map1) <> (FormErrors map2) =
+        FormErrors $ HM.unionWith (\l1 l2 -> L.nub $ l1 <> l2) map1 map2
 
 -- | An empty set of errors.
 instance Monoid FormErrors where
@@ -126,8 +125,7 @@ instance Monoid FormErrors where
 -- { "errors": { "field1": ["err1", "err2"], "otherField" : ["err3"] } }
 -- @
 instance ToJSON FormErrors where
-    toJSON (FormErrors errs) =
-        object [ "errors" .= errs ]
+    toJSON (FormErrors errs) = object ["errors" .= errs]
 
 -- | Is the error set empty?
 null :: FormErrors -> Bool
