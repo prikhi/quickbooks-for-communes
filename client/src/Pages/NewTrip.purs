@@ -4,9 +4,7 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
-    * Form validation
-    * Form submission
-    * Use custom date picker? https://github.com/slamdata/purescript-halogen-datepicker
+    * Render errors in table forms
 -}
 module Pages.NewTrip
     ( component
@@ -23,7 +21,7 @@ import Data.DateTime (date)
 import Data.Decimal as Decimal
 import Data.Either (Either(..))
 import Data.Enum (fromEnum)
-import Data.Foldable (fold, traverse_, notElem)
+import Data.Foldable (fold, traverse_, notElem, all)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Int as Int
@@ -31,6 +29,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Monoid (guard)
 import Data.Symbol (SProxy(..))
 import Data.Traversable (sequence, for_)
+import Data.TraversableWithIndex (traverseWithIndex)
 import Data.Tuple (Tuple(..))
 import DOM.HTML.Indexed (HTMLinput)
 import Halogen as H
@@ -55,8 +54,11 @@ import Forms
     , button
     )
 import Server
-    ( CompanyData(..), AccountData, TripStoreAccount(..)
+    ( CompanyData(..), AccountData(..), TripStoreAccount(..)
+    , NewTripData(..), TripStopData(..), TripTransactionData(..)
+    , TripCreditStopData(..), TripCreditTransactionData(..)
     , class Server, companiesRequest, accountsRequest, tripStoreRequest
+    , newTripRequest
     )
 import Validation as V
 
@@ -114,6 +116,117 @@ initial =
     , stopCounter: StopCount 1
     , errors: V.empty
     }
+
+-- TODO: render errors in tables (as addtl row below the fields?)
+validate :: forall m. DateTime m => State -> m (Either V.FormErrors NewTripData)
+validate st = do
+    dateValidation <- V.utcDate "date" $ fromMaybe "" st.date
+    let tripStopTotals =
+            Array.foldl (\acc stop -> acc + fromMaybe (Decimal.fromInt 0)
+                (join $ map Decimal.fromString stop.stopTotal)
+            ) (Decimal.fromInt 0) st.stops
+    pure $ V.toEither <<< map NewTrip $
+        { date: _
+        , name: _
+        , number: _
+        , advance: _
+        , returned: _
+        , stops: _
+        , creditStops: _
+        }
+        <$> dateValidation
+        <*> V.validateNonEmpty "name" st.name
+        <*> V.validateNonEmpty "number" st.tripNumber
+        <*> V.cents "advance" st.cashAdvance
+        <*> V.cents "return" st.cashReturned
+        <*> traverseWithIndex validateStop st.stops
+        <*> traverseWithIndex validateCreditStop st.storeCreditStops
+        <*  validateEquals "spent" "The amount spent should balance with the stop totals."
+                tripStopTotals (entryCashSpent st)
+  where
+    validateStop :: Int -> V.Validation TripStop TripStopData
+    validateStop index stop =
+        let
+            fieldPrefix = "trip-stop-" <> show index <> "-"
+            transactionTotal = stopTransactionTotal stop
+         in
+            V.mapErrorFields ((<>) fieldPrefix) $ map TripStop $
+                { name: _
+                , transactions: _
+                }
+                <$> V.validateNonEmpty "name" stop.name
+                <*> map Array.catMaybes
+                        (traverseWithIndex validateStopTransaction stop.transactions)
+                <*  validateEquals "total" "The stop total should balance with the item totals."
+                        transactionTotal (join $ map Decimal.fromString stop.stopTotal)
+    validateStopTransaction :: Int -> V.Validation Transaction (Maybe TripTransactionData)
+    validateStopTransaction index transaction =
+        let fieldPrefix = "transaction-" <> show index <> "-" in
+        if discardTransaction transaction then
+            pure Nothing
+        else
+            V.mapErrorFields ((<>) fieldPrefix) $ map (Just <<< TripTransaction) $
+                { account: _
+                , memo: fromMaybe "" transaction.memo
+                , amount: _
+                , tax: _
+                , total: _
+                , isReturn: transaction.isReturn
+                }
+                <$> map (\(AccountData d) -> d.id) (V.just "account" transaction.account)
+                <*> V.optionalCents "item-price" transaction.amount
+                <*> V.optionalPercentage "tax-rate" transaction.tax
+                <*> V.cents "item-total" transaction.total
+    validateCreditStop :: Int -> V.Validation StoreCreditStop TripCreditStopData
+    validateCreditStop index stop =
+        let
+            fieldPrefix = "store-credit-stop-" <> show index <> "-"
+            transactionTotal = creditStopTransactionTotal stop
+        in
+            V.mapErrorFields ((<>) fieldPrefix) $ map TripCreditStop $
+                { store: _
+                , transactions: _
+                }
+                <$> V.just "store-account" (map (\(TripStoreAccount a) -> a.id) stop.storeAccount)
+                <*> map Array.catMaybes
+                        (traverseWithIndex validateCreditTransaction stop.transactions)
+                <*  validateEquals "total" "The stop total should balance with the item totals."
+                        transactionTotal (join $ map Decimal.fromString stop.stopTotal)
+    validateCreditTransaction :: Int -> V.Validation StoreCreditTransaction (Maybe TripCreditTransactionData)
+    validateCreditTransaction index transaction =
+        let fieldPrefix = "transaction-" <> show index <> "-" in
+        if discardTransaction transaction then
+            pure Nothing
+        else
+            V.mapErrorFields ((<>) fieldPrefix) $ map (Just <<< TripCreditTransaction) $
+                { account: _
+                , memo: fromMaybe "" transaction.memo
+                , amount: _
+                , tax: _
+                , total: _
+                }
+                <$> map (\(AccountData d) -> d.id) (V.just "account" transaction.account)
+                <*> V.optionalCents "item-price" transaction.amount
+                <*> V.optionalPercentage "tax-rate" transaction.tax
+                <*> V.cents "item-total" transaction.total
+
+    -- | Determine whether the transaction is filled out at all or not.
+    discardTransaction :: forall r. { account :: Maybe AccountData, amount :: Maybe String, total :: Maybe String | r } -> Boolean
+    discardTransaction transaction =
+        all identity
+            [ transaction.account == Nothing
+            , transaction.amount == Nothing
+            , transaction.total == Nothing
+            ]
+    -- | Ensure a value exists and matches some expected value.
+    validateEquals :: forall a. Eq a => String -> String -> a -> V.Validation (Maybe a) a
+    validateEquals field message expected = case _ of
+        Nothing -> V.singleError field "A value is required."
+        Just actual ->
+            if actual == expected then
+                pure actual
+            else
+                V.singleError field message
 
 type TripStop =
     { name :: Maybe String
@@ -1210,8 +1323,9 @@ htmlButton content type_ class_ action =
 cashSpentInput :: forall a q m. State -> H.ComponentHTML a q m
 cashSpentInput st =
   let cashSpent = entryCashSpent st
+      errors = V.getFieldErrors "spent" st.errors
    in
-    labelWrapper "Cash Spent" [] "The amount of cash spent during your trip." $
+    labelWrapper "Cash Spent" errors "The amount of cash spent during your trip." $
         HH.input $
             [ HP.type_ HP.InputNumber
             , HP.disabled true
