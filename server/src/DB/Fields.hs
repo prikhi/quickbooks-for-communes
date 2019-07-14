@@ -178,22 +178,16 @@ instance Show UUIDField where
 -- | Re-use the 'UUID' 'Read' instance.
 instance Read UUIDField where
     readsPrec precedence str =
-        (\(uuid, rest) -> (UUIDField uuid, rest))
-            <$> readsPrec precedence str
+        (\(uuid, rest) -> (UUIDField uuid, rest)) <$> readsPrec precedence str
 
 -- | Store UUIDs as their raw 'Data.Text.Text' values.
 instance PersistField UUIDField where
     toPersistValue = PersistText . pack . show
-    fromPersistValue v =
-        case fromPersistValue v of
-            Left e ->
-                Left e
-            Right s ->
-                case reads $ unpack s of
-                    (x, _):_ ->
-                        Right $ UUIDField x
-                    [] ->
-                        Left $ "Invalid UUIDField: " <> s
+    fromPersistValue v = case fromPersistValue v of
+        Left  e -> Left e
+        Right s -> case reads $ unpack s of
+            (x, _) : _ -> Right $ UUIDField x
+            []         -> Left $ "Invalid UUIDField: " <> s
 
 -- | Store UUIDs as a 'SqlString'
 instance PersistFieldSql UUIDField where
