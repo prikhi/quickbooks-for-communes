@@ -46,7 +46,6 @@ import           Parser                         ( FromXML(..)
                                                 , oneOf
                                                 , find
                                                 , at
-                                                , parseInteger
                                                 , parseContent
                                                 , parseContentWith
                                                 , withNamespace
@@ -99,28 +98,27 @@ data QWCConfig = QWCConfig
 -- | Generate the QWC XML configuration file for a QuickBooks User's Web
 -- Connector.
 instance ToXML QWCConfig where
-    toXML QWCConfig {..} =
-        xelem "QBWCXML" $ xelems $ catMaybes
-            [ justXText "AppDescription" qcAppDescription
-            , maybeElem "AppDisplayName" qcAppDisplayName
-            , justXText "AppID"      qcAppID
-            , justXText "AppName"    qcAppName
-            , justXText "AppSupport" qcAppSupport
-            , maybeElem "AppUniqueName" qcAppUniqueName
-            , justXText "AppURL" qcAppURL
-            , maybeElem "CertURL" qcCertURL
-            , justXText "AuthFlags" $ showT $ andAuthFlags qcAuthFlags
-            , justXText "FileID" $ showUUID qcFileID
-            , justXBool "IsReadOnly" qcIsReadOnly
-            , justXBool "Notify"     qcNotify
-            , justXText "OwnerID" $ showUUID qcOwnerID
-            , maybeElemWith "PersonalDataPref" showT qcPersonalDataPref
-            , justXText "QBType" $ showT qcQBType
-            , fmap (xelem "Scheduler" . xSchedule) qcScheduler
-            , maybeElemWith "Style"              showT qcStyle
-            , maybeElemWith "UnattendedModePref" showT qcUnattendedModePref
-            , justXText "UserName" qcUserName
-            ]
+    toXML QWCConfig {..} = xelem "QBWCXML" $ xelems $ catMaybes
+        [ justXText "AppDescription" qcAppDescription
+        , maybeElem "AppDisplayName" qcAppDisplayName
+        , justXText "AppID"      qcAppID
+        , justXText "AppName"    qcAppName
+        , justXText "AppSupport" qcAppSupport
+        , maybeElem "AppUniqueName" qcAppUniqueName
+        , justXText "AppURL" qcAppURL
+        , maybeElem "CertURL" qcCertURL
+        , justXText "AuthFlags" $ showT $ andAuthFlags qcAuthFlags
+        , justXText "FileID" $ showUUID qcFileID
+        , justXBool "IsReadOnly" qcIsReadOnly
+        , justXBool "Notify"     qcNotify
+        , justXText "OwnerID" $ showUUID qcOwnerID
+        , maybeElemWith "PersonalDataPref" showT qcPersonalDataPref
+        , justXText "QBType" $ showT qcQBType
+        , fmap (xelem "Scheduler" . xSchedule) qcScheduler
+        , maybeElemWith "Style"              showT qcStyle
+        , maybeElemWith "UnattendedModePref" showT qcUnattendedModePref
+        , justXText "UserName" qcUserName
+        ]
       where
         justXText name = Just . xelemWithText name
         maybeElem name = fmap $ xelemWithText name
@@ -132,11 +130,9 @@ instance ToXML QWCConfig where
 -- | Nest the generated XML string under a @config@ key.
 instance ToJSON QWCConfig where
     toJSON cfg =
-        let
-            xml :: ByteString
+        let xml :: ByteString
             xml = xrender $ toXML cfg
-        in
-            object [ "config" .= decodeUtf8 xml ]
+        in  object ["config" .= decodeUtf8 xml]
 
 data AuthFlag
     = AllEditions
@@ -278,8 +274,8 @@ parseInitialSendRequestXML = matchName (qbName "sendRequestXML") $ do
     ticket       <- find (qbName "ticket") parseUUID
     companyFile  <- find (qbName "strCompanyFileName") parseContent
     country      <- find (qbName "qbXMLCountry") parseContent
-    majorVersion <- find (qbName "qbXMLMajorVers") parseInteger
-    minorVersion <- find (qbName "qbXMLMinorVers") parseInteger
+    majorVersion <- find (qbName "qbXMLMajorVers") fromXML
+    minorVersion <- find (qbName "qbXMLMinorVers") fromXML
     return $ InitialSendRequestXML ticket
                                    hostData
                                    companyData
@@ -362,40 +358,43 @@ data CallbackResponse
 instance ToXML CallbackResponse where
     toXML r = case r of
         ServerVersionResp v ->
-            xelemQ qbNamespace "serverVersionResponse" $
-                xelemQ qbNamespace "serverVersionResult" v
+            xelemQ qbNamespace "serverVersionResponse"
+                $ xelemQ qbNamespace "serverVersionResult" v
         ClientVersionResp v ->
-            xelemQ qbNamespace "clientVersionResponse" $
-                xelemQ qbNamespace "clientVersionResult" v
+            xelemQ qbNamespace "clientVersionResponse"
+                $ xelemQ qbNamespace "clientVersionResult" v
         AuthenticateResp ticket result maybePostpone maybeAutorun ->
-            xelemQ qbNamespace "authenticateResponse" $
-                xelemQ qbNamespace "authenticateResult" $
-                    qbStringArray $ catMaybes
-                        [ Just $ "{" <> UUID.toText ticket <> "}"
-                        , Just $ showT result
-                        , fmap showT maybePostpone
-                        , fmap showT maybeAutorun
-                        ]
+            xelemQ qbNamespace "authenticateResponse"
+                $ xelemQ qbNamespace "authenticateResult"
+                $ qbStringArray
+                $ catMaybes
+                      [ Just $ "{" <> UUID.toText ticket <> "}"
+                      , Just $ showT result
+                      , fmap showT maybePostpone
+                      , fmap showT maybeAutorun
+                      ]
         SendRequestXMLResp req ->
-            xelemQ qbNamespace "sendRequestXMLResponse" $
-                xelemQ qbNamespace "sendRequestXMLResult" $
-                    xtext $ either (const "") buildRequest req
+            xelemQ qbNamespace "sendRequestXMLResponse"
+                $ xelemQ qbNamespace "sendRequestXMLResult"
+                $ xtext
+                $ either (const "") buildRequest req
         ReceiveResponseXMLResp progress ->
-            xelemQ qbNamespace "receiveResponseXMLResponse" $
-                xelemQ qbNamespace "receiveResponseXMLResult" $
-                    xtext $ showT progress
+            xelemQ qbNamespace "receiveResponseXMLResponse"
+                $ xelemQ qbNamespace "receiveResponseXMLResult"
+                $ xtext
+                $ showT progress
         CloseConnectionResp message ->
-            xelemQ qbNamespace "closeConnectionResponse" $
-                xelemQ qbNamespace "closeConnectionResult" $
-                    xtext message
+            xelemQ qbNamespace "closeConnectionResponse"
+                $ xelemQ qbNamespace "closeConnectionResult"
+                $ xtext message
         ConnectionErrorResp message ->
-            xelemQ qbNamespace "connectionErrorResponse" $
-                xelemQ qbNamespace "connectionErrorResult" $
-                    xtext message
+            xelemQ qbNamespace "connectionErrorResponse"
+                $ xelemQ qbNamespace "connectionErrorResult"
+                $ xtext message
         GetLastErrorResp result ->
-            xelemQ qbNamespace "getLastErrorResponse" $
-                xelemQ qbNamespace "getLastErrorResult" $
-                    toXML result
+            xelemQ qbNamespace "getLastErrorResponse"
+                $ xelemQ qbNamespace "getLastErrorResult"
+                $ toXML result
 
 
 -- | Render a Text list as a QuickBooks String Array.
@@ -434,10 +433,10 @@ data AuthResult
 
 instance Show AuthResult where
     show val = case val of
-        ValidUser -> ""
-        InvalidUser -> "nvu"
-        Busy -> "busy"
-        CompanyFile t  -> unpack t
+        ValidUser     -> ""
+        InvalidUser   -> "nvu"
+        Busy          -> "busy"
+        CompanyFile t -> unpack t
 
 -- | The number of minutes to postpone an update by.
 newtype PostponeMinutes
@@ -467,9 +466,6 @@ data GetLastErrorResult
 
 instance ToXML GetLastErrorResult where
     toXML = xtext . \case
-        NoOp ->
-            "NoOp"
-        InteractiveMode ->
-            "Interactive mode"
-        LastError message ->
-            message
+        NoOp              -> "NoOp"
+        InteractiveMode   -> "Interactive mode"
+        LastError message -> message

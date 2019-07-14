@@ -88,11 +88,6 @@ import           Parser                         ( FromXML(..)
                                                 , optional
                                                 , parseContent
                                                 , parseRead
-                                                , parseBool
-                                                , parseInteger
-                                                , parseDecimal
-                                                , parseDate
-                                                , parseDatetime
                                                 )
 import           Text.XML.Generator             ( Xml
                                                 , Elem
@@ -174,7 +169,8 @@ instance FromXML Response where
         [ HostResponse <$> find "HostQueryRs" fromXML
         , CompanyResponse <$> find "CompanyQueryRs" fromXML
         , PreferencesResponse <$> find "PreferencesQueryRs" fromXML
-        , AccountQueryResponse <$> find "AccountQueryRs" (findAll "AccountRet" fromXML)
+        , AccountQueryResponse
+            <$> find "AccountQueryRs" (findAll "AccountRet" fromXML)
         ]
 
 
@@ -208,9 +204,9 @@ instance FromXML HostData where
         minorVersion           <- find "MinorVersion" parseRead
         countryVersion         <- find "Country" parseContent
         supportedQbxmlVersions <- findAll "SupportedQBXMLVersion" parseContent
-        isAutomaticLogin       <- find "IsAutomaticLogin" parseBool
+        isAutomaticLogin       <- find "IsAutomaticLogin" fromXML
         fileMode               <- find "QBFileMode" parseRead
-        return HostData {..}
+        return HostData { .. }
 
 
 -- | Information about the QuickBooks Company File.
@@ -266,7 +262,7 @@ data CompanyData
 -- | Parse a 'CompanyData' value from a @CompanyRet@ 'Text.XML.Element'.
 instance FromXML CompanyData where
     fromXML = matchName "CompanyRet" $ do
-        isSampleCompany         <- find "IsSampleCompany" parseBool
+        isSampleCompany         <- find "IsSampleCompany" fromXML
         legalName               <- optionalText "LegalCompanyName"
         legalAddress            <- findOptional "LegalAddress" fromXML
         name                    <- optionalText "CompanyName"
@@ -284,8 +280,8 @@ instance FromXML CompanyData where
         ssn                     <- optionalText "SSN"
         subscribedServices      <- find "SubscribedServices"
             $ findAll "Service" fromXML
-        accountantCopy          <- findOptional "AccountantCopy" fromXML
-        return CompanyData {..}
+        accountantCopy <- findOptional "AccountantCopy" fromXML
+        return CompanyData { .. }
       where
         optionalText n = optional $ find n parseContent
         findOptional n = optional . find n
@@ -312,33 +308,27 @@ data PreferencesData
 -- | Parse a PreferencesData' value from a @PreferencesRet@ 'Text.XML.Element'.
 instance FromXML PreferencesData where
     fromXML = matchName "PreferencesRet" $ do
-        accountingPreferences <- find "AccountingPreferences"
-                                    fromXML
-        financeChargePreferences <- find "FinanceChargePreferences"
-                                        fromXML
+        accountingPreferences       <- find "AccountingPreferences" fromXML
+        financeChargePreferences    <- find "FinanceChargePreferences" fromXML
         jobsAndEstimatesPreferences <- find "JobsAndEstimatesPreferences"
                                             fromXML
         multiCurrencyPreferences <- optional
             $ find "MultiCurrencyPreferences" fromXML
-        multiLocationInventoryPreferences <- optional $ find
-            "MultiLocationInventoryPreferences"
-            fromXML
+        multiLocationInventoryPreferences <- optional
+            $ find "MultiLocationInventoryPreferences" fromXML
         purchasesAndVendorsPreferences <- find
             "PurchasesAndVendorsPreferences"
             fromXML
-        reportsPreferences <- find "ReportsPreferences" fromXML
+        reportsPreferences           <- find "ReportsPreferences" fromXML
         salesAndCustomersPreferences <- find "SalesAndCustomersPreferences"
                                              fromXML
-        salesTaxPreferences <- optional
-            $ find "SalesTaxPreferences" fromXML
+        salesTaxPreferences     <- optional $ find "SalesTaxPreferences" fromXML
         timeTrackingPreferences <- optional
             $ find "TimeTrackingPreferences" fromXML
-        currentAppAccessRights <- find "CurrentAppAccessRights"
-                                    fromXML
-        itemsAndInventoryPreferences <- optional $ find
-            "ItemsAndInventoryPreferences"
-            fromXML
-        return PreferencesData {..}
+        currentAppAccessRights       <- find "CurrentAppAccessRights" fromXML
+        itemsAndInventoryPreferences <- optional
+            $ find "ItemsAndInventoryPreferences" fromXML
+        return PreferencesData { .. }
 
 
 data AccountData
@@ -401,27 +391,28 @@ data AccountData
 
 instance FromXML AccountData where
     fromXML = matchName "AccountRet" $ do
-        accountReference <- fromXML
-        accountName <- find "Name" parseContent
-        accountEditSequence <- find "EditSequence" parseContent
-        isActive <- find "IsActive" parseBool
-        parentAccount <- optional $ find "ParentRef" fromXML
-        subLevel <- find "Sublevel" parseInteger
-        accountType <- find "AccountType" fromXML
-        specialAccountType <- optional $ find "SpecialAccountType" fromXML
-        isTaxAccount <- optional $ find "IsTaxAccount" parseBool
-        accountNumber <- optional $ find "AccountNumber" parseContent
-        bankNumber <- optional $ find "BankNumber" parseContent
-        description <- optional $ find "Descr" parseContent
-        balance <- optional $ find "Balance" parseDecimal
-        totalBalance <- optional $ find "TotalBalance" parseDecimal
-        salesTaxCode <- optional $ find "SalesTaxCodeRef" fromXML
-        taxLineData <- optional $ find "TaxLineInfoRet" fromXML
-        cashFlowClassification <- optional $ find "CashFlowClassification" fromXML
-        currency <- optional $ find "CurrencyRef" fromXML
-        createdAt <- find "TimeCreated" parseDatetime
-        modifiedAt <- find "TimeModified" parseDatetime
-        return AccountData {..}
+        accountReference       <- fromXML
+        accountName            <- find "Name" parseContent
+        accountEditSequence    <- find "EditSequence" parseContent
+        isActive               <- find "IsActive" fromXML
+        parentAccount          <- optional $ find "ParentRef" fromXML
+        subLevel               <- find "Sublevel" fromXML
+        accountType            <- find "AccountType" fromXML
+        specialAccountType     <- optional $ find "SpecialAccountType" fromXML
+        isTaxAccount           <- optional $ find "IsTaxAccount" fromXML
+        accountNumber          <- optional $ find "AccountNumber" parseContent
+        bankNumber             <- optional $ find "BankNumber" parseContent
+        description            <- optional $ find "Descr" parseContent
+        balance                <- optional $ find "Balance" fromXML
+        totalBalance           <- optional $ find "TotalBalance" fromXML
+        salesTaxCode           <- optional $ find "SalesTaxCodeRef" fromXML
+        taxLineData            <- optional $ find "TaxLineInfoRet" fromXML
+        cashFlowClassification <- optional
+            $ find "CashFlowClassification" fromXML
+        currency   <- optional $ find "CurrencyRef" fromXML
+        createdAt  <- find "TimeCreated" fromXML
+        modifiedAt <- find "TimeModified" fromXML
+        return AccountData { .. }
 
 
 -- Response Helpers
@@ -470,7 +461,7 @@ instance FromXML Service where
         serviceName   <- find "Name" parseContent
         serviceDomain <- find "Domain" parseContent
         serviceStatus <- find "ServiceStatus" parseRead
-        return Service {..}
+        return Service { .. }
 
 -- | The status of a service the company is or has been subscribed to.
 data ServiceStatus
@@ -505,9 +496,9 @@ data AccountantCopy
 -- | Parse a AccountantCopy from the current Element.
 instance FromXML AccountantCopy where
     fromXML = do
-        accountantCopyExists <- find "AccountantCopyExists" parseBool
-        dividingDate         <- optional $ find "DividingDate" parseDate
-        return AccountantCopy {..}
+        accountantCopyExists <- find "AccountantCopyExists" fromXML
+        dividingDate         <- optional $ find "DividingDate" fromXML
+        return AccountantCopy { .. }
 
 
 -- PREFERENCES
@@ -535,15 +526,16 @@ data AccountingPreferences
 -- | Parse an AccountingPreferences from the current Element.
 instance FromXML AccountingPreferences where
     fromXML = do
-        usingAccountNumbers          <- find "IsUsingAccountNumbers" parseBool
-        requiresAccounts             <- find "IsRequiringAccounts" parseBool
-        usingClassTracking           <- find "IsUsingClassTracking" parseBool
+        usingAccountNumbers          <- find "IsUsingAccountNumbers" fromXML
+        requiresAccounts             <- find "IsRequiringAccounts" fromXML
+        usingClassTracking           <- find "IsUsingClassTracking" fromXML
         assignClassesTo <- optional $ find "AssignClassesTo" fromXML
-        usingAuditTrail              <- find "IsUsingAuditTrail" parseBool
-        assigningJournalEntryNumbers <- find "IsAssigningJournalEntryNumbers"
-                                            parseBool
-        closingDate <- optional $ find "ClosingDate" parseDate
-        return AccountingPreferences {..}
+        usingAuditTrail              <- find "IsUsingAuditTrail" fromXML
+        assigningJournalEntryNumbers <- find
+            "IsAssigningJournalEntryNumbers"
+            fromXML
+        closingDate <- optional $ find "ClosingDate" fromXML
+        return AccountingPreferences { .. }
 
 
 -- | This is undocumented in the QB Desktop API Reference & I haven't
@@ -590,15 +582,15 @@ data FinanceChargePreferences
 instance FromXML FinanceChargePreferences where
     fromXML = do
         annualInterestRate   <- optional $ find "AnnualInterestRate" fromXML
-        minimumFinanceCharge <- optional $ find "MinFinanceCharge" parseDecimal
-        gracePeriod          <- find "GracePeriod" parseInteger
+        minimumFinanceCharge <- optional $ find "MinFinanceCharge" fromXML
+        gracePeriod          <- find "GracePeriod" fromXML
         financeChargeAccount <- optional
             $ find "FinanceChargeAccountRef" fromXML
-        assessingForOverdueCharges <- find "IsAssessingForOverdueCharges" parseBool
-        calculateChargesFrom       <- find "CalculateChargesFrom"
-                                        fromXML
-        markedToBePrinted <- find "IsMarkedToBePrinted" parseBool
-        return FinanceChargePreferences {..}
+        assessingForOverdueCharges <- find "IsAssessingForOverdueCharges"
+                                           fromXML
+        calculateChargesFrom <- find "CalculateChargesFrom" fromXML
+        markedToBePrinted    <- find "IsMarkedToBePrinted" fromXML
+        return FinanceChargePreferences { .. }
 
 -- | Should we calculate finance charges starting from the invoice date or
 -- payment due date?
@@ -626,11 +618,12 @@ data JobsAndEstimatesPreferences
 -- | Parse a JobsAndEstimatesPreferences from the current Element.
 instance FromXML JobsAndEstimatesPreferences where
     fromXML = do
-        usingEstimates               <- find "IsUsingEstimates" parseBool
-        usingProgressInvoicing       <- find "IsUsingProgressInvoicing" parseBool
-        printingItemsWithZeroAmounts <- find "IsPrintingItemsWithZeroAmounts"
-                                            parseBool
-        return JobsAndEstimatesPreferences {..}
+        usingEstimates               <- find "IsUsingEstimates" fromXML
+        usingProgressInvoicing       <- find "IsUsingProgressInvoicing" fromXML
+        printingItemsWithZeroAmounts <- find
+            "IsPrintingItemsWithZeroAmounts"
+            fromXML
+        return JobsAndEstimatesPreferences { .. }
 
 
 -- | Current multi-currency settings for the company file.
@@ -646,9 +639,9 @@ data MultiCurrencyPreferences
 -- | Parse the MultiCurrency Settings from the curent Element.
 instance FromXML MultiCurrencyPreferences where
     fromXML = do
-        multiCurrencyIsOn <- optional $ find "IsMultiCurrencyOn" parseBool
+        multiCurrencyIsOn <- optional $ find "IsMultiCurrencyOn" fromXML
         homeCurrency      <- optional $ find "HomeCurrencyRef" fromXML
-        return MultiCurrencyPreferences {..}
+        return MultiCurrencyPreferences { .. }
 
 
 -- | The QuickBooks Desktop API Reference doesn't have documentation on
@@ -663,10 +656,10 @@ data MultiLocationInventoryPreferences
 instance FromXML MultiLocationInventoryPreferences where
     fromXML = do
         multiLocationInventoryIsAvailable <- optional
-            $ find "IsMultiLocationInventoryAvailable" parseBool
+            $ find "IsMultiLocationInventoryAvailable" fromXML
         multiLocationInventoryIsEnabled <- optional
-            $ find "IsMultiLocationInventoryEnabled" parseBool
-        return MultiLocationInventoryPreferences {..}
+            $ find "IsMultiLocationInventoryEnabled" fromXML
+        return MultiLocationInventoryPreferences { .. }
 
 
 -- | How to handle purchases & vendors.
@@ -685,13 +678,13 @@ data PurchasesAndVendorsPreferences
 
 instance FromXML PurchasesAndVendorsPreferences where
     fromXML = do
-        usingInventory              <- find "IsUsingInventory" parseBool
-        daysBillsAreDue             <- find "DaysBillsAreDue" parseInteger
+        usingInventory              <- find "IsUsingInventory" fromXML
+        daysBillsAreDue             <- find "DaysBillsAreDue" fromXML
         automaticallyUsingDiscounts <- find "IsAutomaticallyUsingDiscounts"
-                                            parseBool
+                                            fromXML
         defaultDiscountAccount <- optional
             $ find "DefaultDiscountAccountRef" fromXML
-        return PurchasesAndVendorsPreferences {..}
+        return PurchasesAndVendorsPreferences { .. }
 
 
 -- | Settings for Reporting.
@@ -708,7 +701,7 @@ instance FromXML ReportsPreferences where
     fromXML = do
         agingReportBasis   <- find "AgingReportBasis" fromXML
         summaryReportBasis <- find "SummaryReportBasis" fromXML
-        return ReportsPreferences {..}
+        return ReportsPreferences { .. }
 
 -- | The start date for overdue days in aging reports.
 data AgingReportBasis
@@ -731,8 +724,8 @@ data SummaryReportBasis
 instance FromXML SummaryReportBasis where
     fromXML = parseContent >>= \case
         "Accrual" -> return AccrualBasis
-        "Cash"    -> return CashBasis
-        s         -> throwParsingError $ ContentParsingError "SummaryReportBasis" s
+        "Cash" -> return CashBasis
+        s -> throwParsingError $ ContentParsingError "SummaryReportBasis" s
 
 
 -- | Settings for sales & customers.
@@ -758,16 +751,15 @@ data SalesAndCustomersPreferences
 
 instance FromXML SalesAndCustomersPreferences where
     fromXML = do
-        defaultShippingMethod <- optional
-            $ find "DefaultShipMethodRef" fromXML
+        defaultShippingMethod <- optional $ find "DefaultShipMethodRef" fromXML
         defaultShipingSite <- optional $ find "DefaultFOB" parseContent
         defaultMarkup <- optional $ find "DefaultMarkup" fromXML
         trackingReimbursedExpensesAsIncome <- find
             "IsTrackingReimbursedExpensesAsIncome"
-            parseBool
-        autoApplyingPayments <- find "IsAutoApplyingPayments" parseBool
-        priceLevels <- optional $ find "PriceLevels" fromXML
-        return SalesAndCustomersPreferences {..}
+            fromXML
+        autoApplyingPayments <- find "IsAutoApplyingPayments" fromXML
+        priceLevels          <- optional $ find "PriceLevels" fromXML
+        return SalesAndCustomersPreferences { .. }
 
 -- | Settings for custom price levels for specific customers.
 data PriceLevelPreferences
@@ -781,9 +773,9 @@ data PriceLevelPreferences
 
 instance FromXML PriceLevelPreferences where
     fromXML = do
-        usingPriceLevels     <- find "IsUsingPriceLevels" parseBool
-        roundingSalesPriceUp <- optional $ find "IsRoundingSalesPriceUp" parseBool
-        return PriceLevelPreferences {..}
+        usingPriceLevels     <- find "IsUsingPriceLevels" fromXML
+        roundingSalesPriceUp <- optional $ find "IsRoundingSalesPriceUp" fromXML
+        return PriceLevelPreferences { .. }
 
 
 -- | Sales Tax settings for the company file.
@@ -808,17 +800,18 @@ data SalesTaxPreferences
 
 instance FromXML SalesTaxPreferences where
     fromXML = do
-        defaultSalesTaxCode <- find "DefaultItemSalesTaxRef" fromXML
-        salesTaxPaymentFrequency <- find "PaySalesTax" fromXML
+        defaultSalesTaxCode        <- find "DefaultItemSalesTaxRef" fromXML
+        salesTaxPaymentFrequency   <- find "PaySalesTax" fromXML
         defaultTaxableSalesTaxCode <- find "DefaultTaxableSalesTaxCodeRef"
-                                        fromXML
-        defaultNonTaxableSalesTaxCode <- find "DefaultNonTaxableSalesTaxCodeRef"
-                                            fromXML
-        usingVendorTaxCode     <- optional $ find "IsUsingVendorTaxCode" parseBool
-        usingCustomerTaxCode   <- optional $ find "IsUsingCustomerTaxCode" parseBool
+                                           fromXML
+        defaultNonTaxableSalesTaxCode <- find
+            "DefaultNonTaxableSalesTaxCodeRef"
+            fromXML
+        usingVendorTaxCode <- optional $ find "IsUsingVendorTaxCode" fromXML
+        usingCustomerTaxCode <- optional $ find "IsUsingCustomerTaxCode" fromXML
         usingAmountsIncludeTax <- optional
-            $ find "IsUsingAmountsIncludeTax" parseBool
-        return SalesTaxPreferences {..}
+            $ find "IsUsingAmountsIncludeTax" fromXML
+        return SalesTaxPreferences { .. }
 
 -- | The frequency of sales tax reports.
 data SalesTaxFrequency
@@ -832,7 +825,7 @@ instance FromXML SalesTaxFrequency where
         "Monthly"   -> return MonthlyTaxReport
         "Quarterly" -> return QuarerlyTaxReport
         "Annually"  -> return AnnualTaxReport
-        s           -> throwParsingError $ ContentParsingError "SalesTaxFrequency" s
+        s -> throwParsingError $ ContentParsingError "SalesTaxFrequency" s
 
 
 -- | Time-tracking settings for the company file.
@@ -843,8 +836,7 @@ newtype TimeTrackingPreferences
         } deriving (Show, Read)
 
 instance FromXML TimeTrackingPreferences where
-    fromXML =
-        TimeTrackingPreferences <$> find "FirstDayOfWeek" fromXML
+    fromXML = TimeTrackingPreferences <$> find "FirstDayOfWeek" fromXML
 
 
 -- | The company file's access restrictions for our application.
@@ -860,11 +852,11 @@ data CurrentAppAccessRights
 
 instance FromXML CurrentAppAccessRights where
     fromXML = do
-        automaticLoginAllowed  <- find "IsAutomaticLoginAllowed" parseBool
+        automaticLoginAllowed  <- find "IsAutomaticLoginAllowed" fromXML
         automaticLoginUserName <- optional
             $ find "AutomaticLoginUserName" parseContent
-        personalDataAccessAllowed <- find "IsPersonalDataAccessAllowed" parseBool
-        return CurrentAppAccessRights {..}
+        personalDataAccessAllowed <- find "IsPersonalDataAccessAllowed" fromXML
+        return CurrentAppAccessRights { .. }
 
 
 -- | This entire datatype is undocumented in the QuickBooks Desktop API
@@ -887,21 +879,22 @@ instance FromXML ItemsAndInventoryPreferences where
     fromXML = do
         enhancedInventoryReceivingEnabled <- optionalBool
             "EnhancedInventoryReceivingEnabled"
-        trackingSerialOrLotNumber   <- optionalBool "IsTrackingSerialOrLotNumber"
+        trackingSerialOrLotNumber <- optionalBool "IsTrackingSerialOrLotNumber"
         trackingOnSalesTransactions <- optionalBool
             "IsTrackingOnSalesTransactionsEnabled"
         trackingOnPurchaseTransactions <- optionalBool
             "IsTrackingOnPurchaseTransactionsEnabled"
         trackingOnInventoryAdjustment <- optionalBool
             "IsTrackingOnInventoryAdjustmentEnabled"
-        trackingOnBuildAssembly <- optionalBool "IsTrackingOnBuildAssemblyEnabled"
-        fifoEnabled             <- optionalBool "FIFOEnabled"
-        fifoEffectiveDate       <- optionalFind "FIFOEffectiveDate" parseDate
-        rsbEnabled              <- optionalBool "IsRSBEnabled"
-        barcodeEnabled          <- optionalBool "IsBarcodeEnabled"
-        return ItemsAndInventoryPreferences {..}
+        trackingOnBuildAssembly <- optionalBool
+            "IsTrackingOnBuildAssemblyEnabled"
+        fifoEnabled       <- optionalBool "FIFOEnabled"
+        fifoEffectiveDate <- optionalFind "FIFOEffectiveDate" fromXML
+        rsbEnabled        <- optionalBool "IsRSBEnabled"
+        barcodeEnabled    <- optionalBool "IsBarcodeEnabled"
+        return ItemsAndInventoryPreferences { .. }
       where
-        optionalBool n = optionalFind n parseBool
+        optionalBool n = optionalFind n fromXML
         optionalFind n = optional . find n
 
 
@@ -969,10 +962,10 @@ data SpecialAccountType
 -- and 'SpecialCostOfGoodsSold'.
 instance FromXML SpecialAccountType where
     fromXML = parseContent >>= \case
-        "AccountsPayable" -> return SpecialAccountsPayable
+        "AccountsPayable"    -> return SpecialAccountsPayable
         "AccountsReceivable" -> return SpecialAccountsReceivable
-        "CostOfGoodsSold" -> return SpecialCostOfGoodsSold
-        _ -> parseRead
+        "CostOfGoodsSold"    -> return SpecialCostOfGoodsSold
+        _                    -> parseRead
 
 
 -- | The line on a 'TaxForm' an Account is associated with. Only relevant
@@ -985,10 +978,8 @@ data TaxLineData
 
 -- | Parse a TaxLineData from the current element.
 instance FromXML TaxLineData where
-    fromXML =
-        TaxLineData
-            <$> find "TaxLineID" parseInteger
-            <*> optional (find "TaxLineName" parseContent)
+    fromXML = TaxLineData <$> find "TaxLineID" fromXML <*> optional
+        (find "TaxLineName" parseContent)
 
 
 -- | Account classifications for cash flow reporting.
@@ -1019,7 +1010,7 @@ newtype Percentage
 
 -- | Parse a Percentage from the text of the current Element.
 instance FromXML Percentage where
-    fromXML = Percentage <$> parseDecimal
+    fromXML = Percentage <$> fromXML
 
 
 -- | A reference to an item in a QuickBooks list, e.g. an Account, TaxCode,
@@ -1041,7 +1032,7 @@ instance FromXML ListReference where
     fromXML = do
         listID   <- find "ListID" parseContent
         fullName <- find "FullName" parseContent
-        return ListReference {..}
+        return ListReference { .. }
 
 
 -- | A potential reference to an item in a QuickBooks list.
@@ -1059,7 +1050,7 @@ instance FromXML OptionalListReference where
     fromXML = do
         optionalListID   <- optional $ find "ListID" parseContent
         optionalFullName <- optional $ find "FullName" parseContent
-        return OptionalListReference {..}
+        return OptionalListReference { .. }
 
 
 -- | A Complete QuickBooks Address.
@@ -1090,7 +1081,7 @@ instance FromXML Address where
         postalCode <- optional $ find "PostalCode" parseContent
         country    <- optional $ find "Country" parseContent
         note       <- optional $ find "Note" parseContent
-        return Address {..}
+        return Address { .. }
 
 
 -- | A month as defined by QuickBooks.

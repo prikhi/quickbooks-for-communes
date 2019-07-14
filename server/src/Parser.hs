@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -39,11 +40,6 @@ module Parser
     , at
       -- * Reading Content
     , parseRead
-    , parseBool
-    , parseInteger
-    , parseDecimal
-    , parseDate
-    , parseDatetime
     , parseContent
     , parseContentWith
       -- * Utilities
@@ -71,6 +67,7 @@ import           Data.Functor.Identity          ( Identity(..)
 import           Data.Maybe                     ( mapMaybe
                                                 , listToMaybe
                                                 )
+import           Data.Ratio                     ( Ratio )
 import           Data.Text                      ( Text
                                                 , intercalate
                                                 , unpack
@@ -107,6 +104,77 @@ class FromXML a where
 -- | Parse the root elment of an XML Document.
 parseDocumentRoot :: FromXML a => Document -> Either ParsingError a
 parseDocumentRoot doc = runParser (documentRoot doc) fromXML
+
+
+-- DEFAULT INSTANCES
+
+-- | Parse an @xsd:bool@ from the Element contents.
+--
+-- Valid values are @1@, @0@, @true@, and @false@.
+instance FromXML Bool where
+    fromXML = parseContent >>= \case
+        "true"  -> return True
+        "1"     -> return True
+        "false" -> return False
+        "0"     -> return False
+        s       -> throwParsingError $ ContentParsingError "xsd:bool" s
+
+-- | Parse an @xsd:integer@ from the Element contents. Leading @+@ signs
+-- are allowed.
+instance FromXML Integer where
+    fromXML = unpack <$> parseContent >>= liftEither . readEither . \case
+        '+' : rest -> rest
+        str        -> str
+
+-- | Parse an @xsd:decimal@ from the Element contents. Leading @+@ signs
+-- are allowed.
+instance FromXML (Ratio Integer) where
+    fromXML = do
+        text <- parseContent
+        let str = T.dropWhile (== '+') text
+        case listToMaybe (readSigned readFloat $ unpack str) of
+            Nothing ->
+                throwParsingError $ ContentParsingError "xsd:decimal" str
+            Just (val, _) -> return val
+
+
+-- | Parse an @xsd:date@ from the Element contents.
+--
+-- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned dates, and
+-- @YYYY-MM-DDZ@ or @YYYY-MM-DD@ for UTC dates.
+instance FromXML Day where
+    fromXML = do
+        text <- unpack <$> parseContent
+        let
+            parsed =
+                readDate "%F%z" text
+                    <|> readDate "%FZ" text
+                    <|> readDate "%F"  text
+        case parsed of
+            Just t -> return t
+            Nothing ->
+                throwParsingError $ ContentParsingError "xsd:date" $ pack text
+
+
+-- | Parse an @xsd:dateTime@ from the Element's contents.
+--
+-- Supported formats are @YYYY-MM-DDTHH:MM:SS±HH:MM@ for zoned date times,
+-- and @YYYY-MM-DDTHH:MM:SSZ@ or @YYYY-MM-DDTHH:MM:SS@ for UTC date times.
+instance FromXML UTCTime where
+    fromXML = do
+        text <- unpack <$> parseContent
+        let parsed =
+                readDate "%FT%T%z" text
+                    <|> readDate "%FT%TZ" text
+                    <|> readDate "%FT%T"  text
+        case parsed of
+            Just t -> return t
+            Nothing ->
+                throwParsingError $ ContentParsingError "xsd:datetime" $ pack
+                    text
+
+readDate :: ParseTime a => String -> String -> Maybe a
+readDate = parseTimeM True defaultTimeLocale
 
 
 -- RUNNING
@@ -399,65 +467,6 @@ getElementsByName name = mapMaybe getByName . elementNodes <$> getElement
 -- | Expect a single 'NodeContent' child & parse it from a Read instance.
 parseRead :: Read a => Parser a
 parseRead = parseContent >>= liftEither . readEither . unpack
-
--- | Parse an @xsd:bool@ from the Element contents.
---
--- Valid values are @1@, @0@, @true@, and @false@.
-parseBool :: Parser Bool
-parseBool = parseContent >>= \case
-    "true"  -> return True
-    "1"     -> return True
-    "false" -> return False
-    "0"     -> return False
-    s       -> throwParsingError $ ContentParsingError "xsd:bool" s
-
--- | Pare an @xsd:integer@ from the Element contents.
-parseInteger :: Parser Integer
-parseInteger = unpack <$> parseContent >>= liftEither . readEither . \case
-    '+' : rest -> rest
-    str        -> str
-
--- | Parse an @xsd:decimal@ from the Element contents.
-parseDecimal :: Parser Rational
-parseDecimal = do
-    text <- parseContent
-    let str = T.dropWhile (== '+') text
-    case listToMaybe (readSigned readFloat $ unpack str) of
-        Nothing -> throwParsingError $ ContentParsingError "xsd:decimal" str
-        Just (val, _) -> return val
-
--- | Parse an @xsd:date@ from the Element contents.
---
--- Supported formats are @YYYY-MM-DD±HH:MM@ for zoned dates, and
--- @YYYY-MM-DDZ@ or @YYYY-MM-DD@ for UTC dates.
-parseDate :: Parser Day
-parseDate = do
-    text <- unpack <$> parseContent
-    let parsed =
-            readDate "%F%z" text <|> readDate "%FZ" text <|> readDate "%F" text
-    case parsed of
-        Just t -> return t
-        Nothing ->
-            throwParsingError $ ContentParsingError "xsd:date" $ pack text
-
--- | Parse an @xsd:dateTime@ from the Element's contents.
---
--- Supported formats are @YYYY-MM-DDTHH:MM:SS±HH:MM@ for zoned date times,
--- and @YYYY-MM-DDTHH:MM:SSZ@ or @YYYY-MM-DDTHH:MM:SS@ for UTC date times.
-parseDatetime :: Parser UTCTime
-parseDatetime = do
-    text <- unpack <$> parseContent
-    let parsed =
-            readDate "%FT%T%z" text
-                <|> readDate "%FT%TZ" text
-                <|> readDate "%FT%T"  text
-    case parsed of
-        Just t -> return t
-        Nothing ->
-            throwParsingError $ ContentParsingError "xsd:datetime" $ pack text
-
-readDate :: ParseTime a => String -> String -> Maybe a
-readDate = parseTimeM True defaultTimeLocale
 
 -- | Parse the Element's content, throwing an error if any other child
 -- Nodes are present.
