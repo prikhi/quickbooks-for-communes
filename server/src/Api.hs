@@ -12,18 +12,22 @@ module Api
     , api
     -- * Frontend Types
     , FrontendAPI
+    -- ** Company Data
+    , NewCompany(..)
     , CompanyData(..)
     , EditCompanyData(..)
-    , CompanyAccountsData(..)
     , StoreAccountData(..)
-    , TripStoreAccount(..)
+    , CompanyAccountsData(..)
+    -- ** Accounts
     , AccountData(..)
-    , NewCompany(..)
+    -- ** Trips
     , NewTrip(..)
     , NewTripStop(..)
     , NewTripTransaction(..)
     , NewTripCreditStop(..)
     , NewTripCreditTransaction(..)
+    , TripStoreAccount(..)
+    , TripListData(..)
     -- * QuickBooks Types
     , QuickBooksAPI
     )
@@ -91,6 +95,7 @@ type FrontendAPI =
     :<|> "accounts" :> Capture "companyid" CompanyId :> Get '[JSON] [AccountData]
     :<|> "new-company" :> ReqBody '[JSON] NewCompany :> Post '[JSON] QWCConfig
     :<|> "new-trip" :> Capture "companyId" CompanyId :> ReqBody '[JSON] NewTrip :> Post '[JSON] TripId
+    :<|> "trips" :> Capture "companyId" CompanyId :> Get '[JSON] [TripListData]
     :<|> "qwc" :> Capture "companyid" CompanyId :> Get '[JSON, XML] QWCConfig
 
 
@@ -317,6 +322,24 @@ data NewTripCreditTransaction
         } deriving (Show, Read, Generic)
 
 instance FromJSON NewTripCreditTransaction
+
+
+-- | Data returned when querying a Company's Trips.
+data TripListData
+    = TripListData
+        { tldId :: TripId
+        -- ^ Trip ID Number
+        , tldDate :: UTCTime
+        -- ^ Date Taken
+        , tldAuthor :: Text
+        -- ^ Tripper
+        , tldNumber :: Text
+        -- ^ Trip Number
+        , tldCashSpent :: Cents
+        -- ^ Total Cash Spent
+        } deriving (Show, Read, Generic)
+
+instance ToJSON TripListData
 
 
 -- QuickBooks

@@ -27,6 +27,7 @@ import           Api                            ( FrontendAPI
                                                 , NewTripTransaction(..)
                                                 , NewTripCreditStop(..)
                                                 , NewTripCreditTransaction(..)
+                                                , TripListData(..)
                                                 )
 import           Config                         ( AppConfig(..) )
 import           Control.Exception.Safe         ( MonadThrow
@@ -101,6 +102,7 @@ routes =
         :<|> accounts
         :<|> newCompany
         :<|> newTrip
+        :<|> tripList
         :<|> generateQwcFile
 
 
@@ -365,6 +367,23 @@ newTrip companyId = V.validateOrThrow >=> \NewTrip {..} -> runDB $ do
                                    , storeCreditTransactionTax     = ntctTax
                                    , storeCreditTransactionTotal   = ntctTotal
                                    }
+
+
+-- | List a Company's unapproved trips.
+tripList :: (SqlDB m, MonadThrow m) => CompanyId -> m [TripListData]
+tripList companyId = fmap (map makeListData) . runDB $ do
+    get companyId >>= maybe (throw err404) (const $ return ())
+    selectList [TripCompany ==. companyId, TripStatus ==. Unapproved]
+               [Desc TripDate]
+  where
+    makeListData :: Entity Trip -> TripListData
+    makeListData (Entity tripId trip) = TripListData
+        { tldId        = tripId
+        , tldDate      = tripDate trip
+        , tldAuthor    = tripAuthor trip
+        , tldNumber    = tripNumber trip
+        , tldCashSpent = tripCashAdvance trip - tripCashReturned trip
+        }
 
 
 
