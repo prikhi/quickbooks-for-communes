@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {- | Validation of API Types
 
@@ -35,6 +36,9 @@ module Validation
     , null
     , singleton
     , formError
+    , mapErrors
+    , prependIndexedFieldName
+    , traverseWithFieldPrefix
     )
 where
 
@@ -56,6 +60,7 @@ import qualified Data.Validation               as V
 import           Servant.Server                 ( ServantErr(errBody)
                                                 , err422
                                                 )
+import           Utils                          ( traverseWithIndex )
 
 -- | Provide a standard validation for a type.
 --
@@ -143,3 +148,36 @@ singleton field message = FormErrors $ HM.singleton field [message]
 -- | Create an error that's not field-specific.
 formError :: Message -> FormErrors
 formError = singleton ""
+
+-- | Modify the `FormErrors` if present.
+mapErrors
+    :: (FormErrors -> FormErrors)
+    -> V.Validation FormErrors a
+    -> V.Validation FormErrors a
+mapErrors func = \case
+    V.Failure err -> V.Failure $ func err
+    v             -> v
+
+-- | Add the given prefix & index to all field names in the errors. The
+-- format used is @\<prefix\>-\<index\>-\<field-name\>@.
+prependIndexedFieldName :: Int -> FieldName -> FormErrors -> FormErrors
+prependIndexedFieldName index prefix =
+    FormErrors
+        . HM.foldlWithKey'
+              (\acc key val -> HM.insert (prependedText key) val acc)
+              HM.empty
+        . fromFormErrors
+  where
+    prependedText :: FieldName -> FieldName
+    prependedText fieldName = if T.null fieldName
+        then prefix <> "-" <> T.pack (show index)
+        else T.intercalate "-" [prefix, T.pack $ show index, fieldName]
+
+-- | Run validations on all items in the list, accumulating the results or
+-- errors, & prefixing the error's field names.
+traverseWithFieldPrefix
+    :: AppValidation a => FieldName -> [a] -> V.Validation FormErrors [a]
+traverseWithFieldPrefix prefix = traverseWithIndex
+    (\index item ->
+        mapErrors (prependIndexedFieldName index prefix) $ validator item
+    )
