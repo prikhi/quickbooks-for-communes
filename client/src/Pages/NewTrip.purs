@@ -4,6 +4,8 @@ TODO:
     * Handle waiting for companies to load & no companies returned
     * Handle unselected company, waiting for accounts to load & no accounts
       returned
+    * Redirect to details page on success(need to implement details page)
+    * Refactor form so we can re-use for the EditTrip page.
     * Render errors in table forms
 -}
 module Pages.NewTrip
@@ -506,9 +508,21 @@ eval = case _ of
             }
         focusLastStop (_.storeCreditStops) creditStopAccountFieldRef
     SubmitForm ev -> do
-        st <- H.get
-        logShow st
         preventSubmit ev
+        st <- H.get
+        validate st >>= case _ of
+            Left errs ->
+                H.modify_ (_ { errors = errs })
+            Right newTrip ->
+                case join (Int.fromString <$> st.company) of
+                    Nothing ->
+                        H.modify_ (_ { errors = V.singleton "company" "A company is required."})
+                    Just companyId ->
+                        newTripRequest companyId  newTrip >>= \r -> case r.body of
+                            Left errs ->
+                                H.modify_ (_ { errors = errs })
+                            Right tripId ->
+                                logShow $ "Success! TripId: " <> show tripId
     StopInputName index str ->
         updateStop index (_ { name = Just str })
     StopInputTotal index str ->
