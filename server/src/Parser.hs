@@ -493,8 +493,7 @@ parseContentWith p = do
 -- > soapName :: Text -> Name
 -- > soapName = withNamespace "http://schemas.xmlsoap.org/soap/envelope/"
 withNamespace :: Text -> (Text -> Name)
-withNamespace namespace name = Name
-    { nameLocalName = name
-    , nameNamespace = Just namespace
-    , namePrefix    = Nothing
-    }
+withNamespace namespace name = Name { nameLocalName = name
+                                    , nameNamespace = Just namespace
+                                    , namePrefix    = Nothing
+                                    }
