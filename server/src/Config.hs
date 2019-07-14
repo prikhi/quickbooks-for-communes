@@ -89,63 +89,67 @@ data AppConfig =
 
 instance FromJSON AppConfig where
     parseJSON = withObject "AppConfig" $ \o -> do
-        host <- fmap fromString $ o .: "host"
+        host     <- fmap fromString $ o .: "host"
         hostname <- o .: "hostname"
-        port <- o .: "port"
-        baseUrl <- o .: "base-url"
-        name <- o .: "name"
-        (dbHost, dbPort, dbUser, dbPass, dbName, dbConnectionCount) <- o .: "db"
-            >>= withObject "db"
+        port     <- o .: "port"
+        baseUrl  <- o .: "base-url"
+        name     <- o .: "name"
+        (dbHost, dbPort, dbUser, dbPass, dbName, dbConnectionCount) <-
+            o .: "db" >>= withObject
+                "db"
                 (\db ->
                     (,,,,,)
-                        <$> db .: "host"
-                        <*> db .:? "port"
-                        <*> db .: "username"
-                        <*> db .: "password"
-                        <*> db .: "name"
-                        <*> db .: "connection-count"
+                        <$> db
+                        .:  "host"
+                        <*> db
+                        .:? "port"
+                        <*> db
+                        .:  "username"
+                        <*> db
+                        .:  "password"
+                        <*> db
+                        .:  "name"
+                        <*> db
+                        .:  "connection-count"
                 )
-        (accSyncInterval, accSyncID) <- o .: "account-sync"
-            >>= withObject "account-sync"
-                    (\acc ->
-                        (,)
-                            <$> acc .: "interval"
-                            <*> acc .: "id"
-                    )
-        (useTLS, allowInsecure, keyFile, certFile, chainFiles) <- o .: "tls"
-            >>= withObject "tls"
-                    (\tls ->
-                        (,,,,)
-                            <$> tls .: "enable"
-                            <*> tls .: "allow-insecure"
-                            <*> tls .: "key-file"
-                            <*> tls .: "cert-file"
-                            <*> tls .: "cert-chain-files"
-                    )
-        return AppConfig
-            { appHost = host
-            , appHostname = hostname
-            , appPort = port
-            , appBaseUrl = baseUrl
-
-            , appName = name
-
-            , appDBHost = dbHost
-            , appDBPort = dbPort
-            , appDBUser = dbUser
-            , appDBPass = dbPass
-            , appDBName = dbName
-            , appDBConnectionCount = dbConnectionCount
-
-            , appEnableTLS = useTLS
-            , appAllowInsecure = allowInsecure
-            , appTLSKeyFile = keyFile
-            , appTLSCertFile = certFile
-            , appTLSChainFiles = chainFiles
-
-            , appAccountSyncInterval = accSyncInterval
-            , appAccountSyncID = accSyncID
-            }
+        (accSyncInterval, accSyncID) <- o .: "account-sync" >>= withObject
+            "account-sync"
+            (\acc -> (,) <$> acc .: "interval" <*> acc .: "id")
+        (useTLS, allowInsecure, keyFile, certFile, chainFiles) <-
+            o .: "tls" >>= withObject
+                "tls"
+                (\tls ->
+                    (,,,,)
+                        <$> tls
+                        .:  "enable"
+                        <*> tls
+                        .:  "allow-insecure"
+                        <*> tls
+                        .:  "key-file"
+                        <*> tls
+                        .:  "cert-file"
+                        <*> tls
+                        .:  "cert-chain-files"
+                )
+        return AppConfig { appHost                = host
+                         , appHostname            = hostname
+                         , appPort                = port
+                         , appBaseUrl             = baseUrl
+                         , appName                = name
+                         , appDBHost              = dbHost
+                         , appDBPort              = dbPort
+                         , appDBUser              = dbUser
+                         , appDBPass              = dbPass
+                         , appDBName              = dbName
+                         , appDBConnectionCount   = dbConnectionCount
+                         , appEnableTLS           = useTLS
+                         , appAllowInsecure       = allowInsecure
+                         , appTLSKeyFile          = keyFile
+                         , appTLSCertFile         = certFile
+                         , appTLSChainFiles       = chainFiles
+                         , appAccountSyncInterval = accSyncInterval
+                         , appAccountSyncID       = accSyncID
+                         }
 
 -- | Load the Application Configuration from YAML files, allowing for
 -- Environmental Variable overrides.

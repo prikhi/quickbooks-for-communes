@@ -135,7 +135,8 @@ class Monad m => HashPassword m where
 
 instance MonadIO m => HashPassword (ReaderT env m) where
     hashPassword password =
-        fmap decodeUtf8 <$> liftIO (
-            hashPasswordUsingPolicy slowerBcryptHashingPolicy
-                $ encodeUtf8 password
-        )
+        fmap decodeUtf8
+            <$> liftIO
+                    ( hashPasswordUsingPolicy slowerBcryptHashingPolicy
+                    $ encodeUtf8 password
+                    )

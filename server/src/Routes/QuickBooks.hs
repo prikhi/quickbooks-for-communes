@@ -198,13 +198,12 @@ syncRoute r = case r of
     newSession :: (SqlDB m, GenerateUUID m) => m (UUID, SessionId)
     newSession = runDB $ do
         ticket <- generateUniqueTicket
-        (ticket, ) <$> insert Session
-            { sessionTicket  = UUIDField ticket
-            , sessionType    = AccountSync
-            , sessionStatus_ = Initiated
-            , sessionError   = Nothing
-            , sessionCompany = Nothing
-            }
+        (ticket, ) <$> insert Session { sessionTicket  = UUIDField ticket
+                                      , sessionType    = AccountSync
+                                      , sessionStatus_ = Initiated
+                                      , sessionError   = Nothing
+                                      , sessionCompany = Nothing
+                                      }
 
     isValidPassword :: Company -> T.Text -> Bool
     isValidPassword Company { companyPassword } passwordAttempt =
@@ -332,7 +331,7 @@ updateAccounts companyId accounts = do
                 case (optionalListID, optionalFullName) of
                     (Just listID, Just fullName) ->
                         let parentReference =
-                                ListReference {listID , fullName }
+                                    ListReference { listID, fullName }
                         in  HM.insertWith (\new old -> L.nub $ new <> old)
                                           parentReference
                                           [accountReference]
@@ -358,22 +357,21 @@ updateAccounts companyId accounts = do
         -> Maybe AccountId
         -> ListReference
         -> SqlM m [ListReference]
-    runUpdate dataMap childMap maybeParent accountRef
-        = let children = fromMaybe [] $ HM.lookup accountRef childMap
-          in
-              case HM.lookup accountRef dataMap of
-                  Nothing          -> return [accountRef]
-                  Just accountData -> do
-                      let account = transform maybeParent accountData
-                      accountId <- either entityKey id <$> insertBy account
-                      childRefs <-
-                          concat
-                              <$> mapM
-                                      ( runUpdate dataMap childMap
-                                      $ Just accountId
-                                      )
-                                      children
-                      return $ accountRef : childRefs
+    runUpdate dataMap childMap maybeParent accountRef =
+        let children = fromMaybe [] $ HM.lookup accountRef childMap
+        in
+            case HM.lookup accountRef dataMap of
+                Nothing          -> return [accountRef]
+                Just accountData -> do
+                    let account = transform maybeParent accountData
+                    accountId <- either entityKey id <$> insertBy account
+                    childRefs <-
+                        concat
+                            <$> mapM
+                                    (runUpdate dataMap childMap $ Just accountId
+                                    )
+                                    children
+                    return $ accountRef : childRefs
 
     -- | Build an Account from it's parent ID & the QuickBooks AccountData.
     transform :: Maybe AccountId -> AccountData -> Account
@@ -449,5 +447,5 @@ updateAccounts companyId accounts = do
     getFullParentReference account = case parentAccount account of
         Nothing     -> Nothing
         Just optRef -> case (optionalListID optRef, optionalFullName optRef) of
-            (Just listID, Just fullName) -> Just ListReference {..}
+            (Just listID, Just fullName) -> Just ListReference { .. }
             _                            -> Nothing
