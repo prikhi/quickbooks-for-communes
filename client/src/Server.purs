@@ -21,6 +21,7 @@ import Halogen as H
 import Web.File.Blob as Blob
 
 import App (AppM)
+import Fields (UTCDate, Cents, Percentage)
 import Validation as V
 
 
@@ -39,6 +40,8 @@ class Monad m <= Server m where
     tripStoreRequest :: Int -> m (Either String (Array TripStoreAccount))
     -- | Fetch the Account data for a Company.
     accountsRequest :: Int -> m (Either String (Array AccountData))
+    -- | Submit a New Trip for a Company.
+    newTripRequest :: Int -> NewTripData -> m (Response (Either V.FormErrors Int))
     -- | Add a new Company.
     newCompanyRequest :: NewCompanyData -> m (Response (Either V.FormErrors QWCFile))
 
@@ -48,6 +51,7 @@ instance serverApp :: Server AppM where
     editCompanyRequest cId = liftAff <<< ecdRequest cId
     tripStoreRequest = liftAff <<< tsaRequest
     accountsRequest = liftAff <<< adRequest
+    newTripRequest cId = liftAff <<< ntRequest cId
     newCompanyRequest = liftAff <<< ncRequest
 
 instance serverHalogen :: Server m => Server (H.HalogenM s f g o m) where
@@ -56,6 +60,7 @@ instance serverHalogen :: Server m => Server (H.HalogenM s f g o m) where
     editCompanyRequest cId = H.lift <<< editCompanyRequest cId
     tripStoreRequest = H.lift <<< tripStoreRequest
     accountsRequest = H.lift <<< accountsRequest
+    newTripRequest cId = H.lift <<< newTripRequest cId
     newCompanyRequest = H.lift <<< newCompanyRequest
 
 
@@ -292,6 +297,102 @@ prettyAccountType = case _ of
     liability = "Liability"
     nonPosting = "Non Posting"
 
+
+
+-- New Trip Request
+
+ntRequest
+    :: Int
+    -> NewTripData
+    -> Aff (Response (Either V.FormErrors Int))
+ntRequest companyId ntData =
+    V.handleResponseErrors
+        <$> post Response.string ("/api/new-trip/" <> show companyId <> "/")
+                (Request.json $ encodeJson ntData)
+
+data NewTripData
+    = NewTrip
+        { date :: UTCDate
+        , name :: String
+        , number :: String
+        , advance :: Cents
+        , returned :: Cents
+        , stops :: Array TripStopData
+        , creditStops :: Array TripCreditStopData
+        }
+
+instance encodeNewTripData :: EncodeJson NewTripData where
+    encodeJson (NewTrip t) =
+           "ntDate" := t.date
+        ~> "ntName" := t.name
+        ~> "ntNumber" := t.number
+        ~> "ntAdvance" := t.advance
+        ~> "ntReturned" := t.returned
+        ~> "ntStops" := t.stops
+        ~> "ntCreditStops" := t.creditStops
+        ~> jsonEmptyObject
+
+data TripStopData
+    = TripStop
+        { name :: String
+        , transactions :: Array TripTransactionData
+        }
+
+instance encodeTripStopData :: EncodeJson TripStopData where
+    encodeJson (TripStop s) =
+           "ntsName" := s.name
+        ~> "ntsTransactions" := s.transactions
+        ~> jsonEmptyObject
+
+data TripTransactionData
+    = TripTransaction
+        { account :: Int
+        , memo :: String
+        , amount :: Maybe Cents
+        , tax :: Maybe Percentage
+        , total :: Cents
+        , isReturn :: Boolean
+        }
+
+instance encodeTripTransactionData :: EncodeJson TripTransactionData where
+    encodeJson (TripTransaction t) =
+           "nttAccount" := t.account
+        ~> "nttMemo" := t.memo
+        ~> "nttAmount" := t.amount
+        ~> "nttTax" := t.tax
+        ~> "nttTotal" := t.total
+        ~> "nttIsReturn" := t.isReturn
+        ~> jsonEmptyObject
+
+data TripCreditStopData
+    = TripCreditStop
+        { store :: Int
+        , transactions :: Array TripCreditTransactionData
+        }
+
+instance encodeTripCreditStopData :: EncodeJson TripCreditStopData where
+    encodeJson (TripCreditStop s) =
+           "ntcsStore" := s.store
+        ~> "ntcsTransactions" := s.transactions
+        ~> jsonEmptyObject
+
+data TripCreditTransactionData
+    = TripCreditTransaction
+        { account :: Int
+        , memo :: String
+        , amount :: Maybe Cents
+        , tax :: Maybe Percentage
+        , total :: Cents
+        }
+
+instance encodeTripCreditTransactionData :: EncodeJson TripCreditTransactionData where
+    encodeJson (TripCreditTransaction t) =
+           "ntctAccount" := t.account
+        ~> "ntctMemo" := t.memo
+        ~> "ntctAmount" := t.amount
+        ~> "ntctTax" := t.tax
+        ~> "ntctTotal" := t.total
+        ~> jsonEmptyObject
 
 
 
