@@ -12,13 +12,15 @@ non-Accountant communards, consisting of a Purescript frontend and a Haskell
 API server that communicates with QuickBooks Desktop using the `QuickBooks
 WebConnector`_.
 
-This is still in the alpha stage, but under active development.
+This is a port of our `Acorn Accounting`_ application and still in the alpha
+stage.
 
 The frontend will present Communards with transaction logs for relevant
 Accounts as well as forms for entering their Credit Card purchases, Town Trips,
 or Internal Transfers.
 
 .. _QuickBooks WebConnector: https://developer.intuit.com/app/developer/qbdesktop/docs/get-started/get-started-with-quickbooks-web-connector
+.. _Acorn Accounting: https://github.com/prikhi/acornaccounting
 
 
 
