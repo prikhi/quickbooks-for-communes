@@ -175,6 +175,8 @@ evalAction = case _ of
                 }
             void $ H.query _select unit $ H.tell $ Select.Highlight 0
             void $ H.query _select unit $ H.tell Select.Open
+        Select.HighlightedIndexChanged _ ->
+            pure unit
         Select.VisibilityChanged _ ->
             pure unit
         Select.Emit action ->
